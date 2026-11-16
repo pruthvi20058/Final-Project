@@ -1,0 +1,94 @@
+{
+  "model_id": "pima_diabetes_logistic_regression",
+  "model_version": "v2.0.0-pima-diabetes",
+  "task": "binary_classification",
+  "target": {
+    "name": "outcome",
+    "classes": {
+      "0": "Negative",
+      "1": "Positive"
+    }
+  },
+  "canonical_features": [
+    {
+      "name": "preg",
+      "clinical_label": "Pregnancies",
+      "report_synonyms": ["preg", "pregnancies", "pregnancy_count", "gravida"],
+      "unit": "count",
+      "numeric_type": "integer",
+      "required": true,
+      "valid_range": { "min": 0, "max": 20 },
+      "suspicious_range": { "min": 15, "max": 20 }
+    },
+    {
+      "name": "plas",
+      "clinical_label": "Plasma Glucose",
+      "report_synonyms": ["plas", "glucose", "fasting_glucose", "fbs", "blood_sugar", "plasma_glucose"],
+      "unit": "mg/dL",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 40.0, "max": 500.0 },
+      "suspicious_range": { "min": 250.0, "max": 500.0 }
+    },
+    {
+      "name": "pres",
+      "clinical_label": "Diastolic Blood Pressure",
+      "report_synonyms": ["pres", "diastolic_bp", "blood_pressure", "diastolic_pressure", "bp_diastolic"],
+      "unit": "mmHg",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 40.0, "max": 160.0 },
+      "suspicious_range": { "min": 110.0, "max": 160.0 }
+    },
+    {
+      "name": "skin",
+      "clinical_label": "Triceps Skin Fold Thickness",
+      "report_synonyms": ["skin", "skin_thickness", "triceps_skin_fold", "skinfold"],
+      "unit": "mm",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 5.0, "max": 99.0 },
+      "suspicious_range": { "min": 60.0, "max": 99.0 }
+    },
+    {
+      "name": "insu",
+      "clinical_label": "2-Hour Serum Insulin",
+      "report_synonyms": ["insu", "insulin", "serum_insulin", "2_hour_insulin", "fasting_insulin"],
+      "unit": "uU/mL",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 5.0, "max": 900.0 },
+      "suspicious_range": { "min": 400.0, "max": 900.0 }
+    },
+    {
+      "name": "mass",
+      "clinical_label": "Body Mass Index (BMI)",
+      "report_synonyms": ["mass", "bmi", "body_mass_index"],
+      "unit": "kg/m2",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 10.0, "max": 80.0 },
+      "suspicious_range": { "min": 50.0, "max": 80.0 }
+    },
+    {
+      "name": "pedi",
+      "clinical_label": "Diabetes Pedigree Function",
+      "report_synonyms": ["pedi", "pedigree", "diabetes_pedigree", "family_pedigree_score"],
+      "unit": "score",
+      "numeric_type": "float",
+      "required": true,
+      "valid_range": { "min": 0.05, "max": 3.0 },
+      "suspicious_range": { "min": 2.0, "max": 3.0 }
+    },
+    {
+      "name": "age",
+      "clinical_label": "Age",
+      "report_synonyms": ["age", "patient_age", "years_old"],
+      "unit": "years",
+      "numeric_type": "integer",
+      "required": true,
+      "valid_range": { "min": 18, "max": 120 },
+      "suspicious_range": { "min": 95, "max": 120 }
+    }
+  ]
+}

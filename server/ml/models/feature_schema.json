@@ -1,0 +1,22 @@
+{
+  "features": [
+    "glucose",
+    "hba1c",
+    "troponin",
+    "ckmb",
+    "hemoglobin",
+    "wbc",
+    "creatinine",
+    "alt",
+    "ast",
+    "cholesterol"
+  ],
+  "target_classes": [
+    "Acute Hepatic Dysfunction / Transaminitis",
+    "Acute Kidney Injury / Chronic Renal Dysfunction",
+    "Acute Myocardial Infarction (STEMI/NSTEMI)",
+    "Iron Deficiency Anemia",
+    "Normal Baseline Laboratory Panel",
+    "Type 2 Diabetes Mellitus Exacerbation"
+  ]
+}

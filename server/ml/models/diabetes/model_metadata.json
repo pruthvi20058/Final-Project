@@ -1,0 +1,113 @@
+{
+  "model_name": "MediAgent Pima Diabetes Classifier (Logistic Regression)",
+  "model_version": "v2.0.0-pima-diabetes",
+  "algorithm": "Logistic Regression",
+  "dataset_provenance": {
+    "name": "Pima Indians Diabetes Dataset",
+    "source": "UCI Machine Learning Repository / OpenML (Dataset ID 37)",
+    "publication": "Smith et al. (1988), ADAP learning algorithm study",
+    "records_total": 768,
+    "train_samples": 614,
+    "test_samples": 154,
+    "synthetic_data_used": false
+  },
+  "leakage_audit": {
+    "duplicate_rows_detected": 0,
+    "scaler_fitted_on_train_only": true,
+    "stratified_split": true,
+    "random_seed": 42
+  },
+  "selected_model_test_metrics": {
+    "accuracy": 0.7143,
+    "precision": 0.6087,
+    "recall_sensitivity": 0.5185,
+    "specificity": 0.82,
+    "f1_score": 0.56,
+    "roc_auc": 0.823,
+    "brier_score": 0.1679
+  },
+  "selected_model_cv_metrics": {
+    "cv_accuracy_mean": 0.7882,
+    "cv_accuracy_std": 0.0158,
+    "cv_f1_mean": 0.6579,
+    "cv_roc_auc_mean": 0.8334
+  },
+  "confusion_matrix": {
+    "tn": 82,
+    "fp": 18,
+    "fn": 26,
+    "tp": 28
+  },
+  "all_model_comparisons": {
+    "Logistic Regression": {
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.7882,
+        "cv_accuracy_std": 0.0158,
+        "cv_f1_mean": 0.6579,
+        "cv_roc_auc_mean": 0.8334
+      },
+      "test_metrics": {
+        "accuracy": 0.7143,
+        "precision": 0.6087,
+        "recall_sensitivity": 0.5185,
+        "specificity": 0.82,
+        "f1_score": 0.56,
+        "roc_auc": 0.823,
+        "brier_score": 0.1679
+      },
+      "confusion_matrix": {
+        "tn": 82,
+        "fp": 18,
+        "fn": 26,
+        "tp": 28
+      }
+    },
+    "Random Forest": {
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.7671,
+        "cv_accuracy_std": 0.0126,
+        "cv_f1_mean": 0.6205,
+        "cv_roc_auc_mean": 0.8266
+      },
+      "test_metrics": {
+        "accuracy": 0.7403,
+        "precision": 0.6458,
+        "recall_sensitivity": 0.5741,
+        "specificity": 0.83,
+        "f1_score": 0.6078,
+        "roc_auc": 0.8141,
+        "brier_score": 0.1671
+      },
+      "confusion_matrix": {
+        "tn": 83,
+        "fp": 17,
+        "fn": 23,
+        "tp": 31
+      }
+    },
+    "Gradient Boosting": {
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.7443,
+        "cv_accuracy_std": 0.0212,
+        "cv_f1_mean": 0.621,
+        "cv_roc_auc_mean": 0.8094
+      },
+      "test_metrics": {
+        "accuracy": 0.7532,
+        "precision": 0.6667,
+        "recall_sensitivity": 0.5926,
+        "specificity": 0.84,
+        "f1_score": 0.6275,
+        "roc_auc": 0.8389,
+        "brier_score": 0.1605
+      },
+      "confusion_matrix": {
+        "tn": 84,
+        "fp": 16,
+        "fn": 22,
+        "tp": 32
+      }
+    }
+  },
+  "clinical_disclaimer": "AI-assisted clinical decision support screening tool. Not a confirmed diagnosis."
+}

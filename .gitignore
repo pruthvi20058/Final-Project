@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+dist/
+build/
+.env
+
+# Database & Uploads
+*.db
+*.db-shm
+*.db-wal
+server/uploads/*
+!server/uploads/.gitkeep
+
+# System & Logs
+.DS_Store
+*.log
+Thumbs.db
+
+# Python & ML Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+server/debug/
+server/scratch/
+
+# Academic Report & Report Assets (excluded from main project repo)
+report_assets/
+figures/
+website_screenshots/
+MediAgent_Website_Photos/
+mediagent_report.*
+mediagent_full_report.*
+references.bib
+README_LATEX.md
+generate_report_docs.py
+
+# Archive Bundles
+*.zip
+*.tar.gz
+

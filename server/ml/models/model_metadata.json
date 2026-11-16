@@ -1,0 +1,34 @@
+{
+  "model_name": "MediAgent Random Forest Clinical Risk Classifier",
+  "version": "1.0.0",
+  "dataset": "clinical_lab_dataset.csv",
+  "train_samples": 960,
+  "test_samples": 240,
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "roc_auc": 1.0
+  },
+  "feature_names": [
+    "glucose",
+    "hba1c",
+    "troponin",
+    "ckmb",
+    "hemoglobin",
+    "wbc",
+    "creatinine",
+    "alt",
+    "ast",
+    "cholesterol"
+  ],
+  "classes": [
+    "Acute Hepatic Dysfunction / Transaminitis",
+    "Acute Kidney Injury / Chronic Renal Dysfunction",
+    "Acute Myocardial Infarction (STEMI/NSTEMI)",
+    "Iron Deficiency Anemia",
+    "Normal Baseline Laboratory Panel",
+    "Type 2 Diabetes Mellitus Exacerbation"
+  ]
+}

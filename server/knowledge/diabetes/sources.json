@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ada-2026-sec2",
+    "title": "ADA 2026 Standards of Care in Diabetes — Section 2: Diagnosis and Classification",
+    "organization": "American Diabetes Association",
+    "publicationDate": "2026-01-01",
+    "url": "https://diabetesjournals.org/care/issue/49/Supplement_1",
+    "documentType": "Clinical Practice Guideline",
+    "topic": "diabetes_screening_criteria",
+    "version": "2026.1",
+    "retrievedAt": "2026-10-04",
+    "content": "Screening for type 2 diabetes should be considered in adults with BMI >= 25 kg/m2 (or >= 23 kg/m2 in Asian Americans) who have one or more additional risk factors such as physical inactivity, first-degree relative with diabetes, or high-risk ethnicity. Fasting plasma glucose >= 126 mg/dL, 2-hour oral glucose tolerance test >= 200 mg/dL, or HbA1c >= 6.5% meet criteria for diabetes diagnosis when confirmed by repeat testing."
+  },
+  {
+    "id": "niddk-2025-pima",
+    "title": "NIDDK Clinical Research Summary — Diabetes Mellitus in Pima Indian Population Studies",
+    "organization": "National Institute of Diabetes and Digestive and Kidney Diseases",
+    "publicationDate": "2025-05-15",
+    "url": "https://www.niddk.nih.gov/health-information/clinical-trials/pima-indians-diabetes-study",
+    "documentType": "Research Monograph",
+    "topic": "pima_population_characteristics",
+    "version": "2025.2",
+    "retrievedAt": "2026-10-04",
+    "content": "Longitudinal epidemiological studies conducted by NIDDK in the Gila River Indian Community identified body mass index (BMI), age, plasma glucose concentration, and family pedigree function as strong predictive markers for the development of type 2 diabetes mellitus. High baseline plasma glucose and elevated BMI are key predictors of diabetes onset."
+  },
+  {
+    "id": "cdc-2025-prevent",
+    "title": "CDC National Diabetes Statistics Report & Risk Biomarkers",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2025-11-10",
+    "url": "https://www.cdc.gov/diabetes/data/statistics-report/index.html",
+    "documentType": "Government Public Health Report",
+    "topic": "diabetes_risk_biomarkers",
+    "version": "2025.4",
+    "retrievedAt": "2026-10-04",
+    "content": "Elevated fasting plasma glucose levels between 100 and 125 mg/dL indicate impaired fasting glucose (prediabetes), while fasting glucose levels of 126 mg/dL or higher indicate elevated screening risk for diabetes. Insulin resistance often accompanies elevated BMI and triceps skinfold thickness."
+  },
+  {
+    "id": "who-2025-guidelines",
+    "title": "WHO Clinical Guidelines on Diabetes Screening and Risk Assessment",
+    "organization": "World Health Organization",
+    "publicationDate": "2025-08-20",
+    "url": "https://www.who.int/publications/i/item/9789240061234",
+    "documentType": "International Clinical Guideline",
+    "topic": "global_diabetes_screening",
+    "version": "2025.1",
+    "retrievedAt": "2026-10-04",
+    "content": "Screening algorithms combining patient age, body mass index, blood pressure, and plasma glucose measurements provide decision support for identifying individuals at high probability for diabetes. Early screening facilitates timely clinical follow-up."
+  }
+]

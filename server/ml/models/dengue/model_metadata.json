@@ -1,0 +1,101 @@
+{
+  "model_name": "MediAgent Dengue Diagnostic Classifier (Random Forest)",
+  "model_version": "v1.0.0-dengue-clinical",
+  "algorithm": "Random Forest",
+  "dataset_provenance": {
+    "name": "Dengue Clinical Hematology and Symptom Dataset",
+    "source": "Kaggle Clinical Dengue Detection / wahiduzzaman1511-ai",
+    "records_total": 1000,
+    "train_samples": 800,
+    "test_samples": 200,
+    "synthetic_data_used": false
+  },
+  "leakage_audit": {
+    "duplicate_rows_detected": 0,
+    "scaler_fitted_on_train_only": true,
+    "stratified_split": true,
+    "random_seed": 42
+  },
+  "selected_model_test_metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall_sensitivity": 1.0,
+    "specificity": 1.0,
+    "f1_score": 1.0,
+    "roc_auc": 1.0,
+    "brier_score": 0.0,
+    "confusion_matrix": {
+      "tn": 93,
+      "fp": 0,
+      "fn": 0,
+      "tp": 107
+    },
+    "cv_metrics": {
+      "cv_accuracy_mean": 1.0,
+      "cv_f1_mean": 1.0,
+      "cv_roc_auc_mean": 1.0
+    }
+  },
+  "all_model_comparisons": {
+    "Random Forest": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall_sensitivity": 1.0,
+      "specificity": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "brier_score": 0.0,
+      "confusion_matrix": {
+        "tn": 93,
+        "fp": 0,
+        "fn": 0,
+        "tp": 107
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 1.0,
+        "cv_f1_mean": 1.0,
+        "cv_roc_auc_mean": 1.0
+      }
+    },
+    "HistGradientBoosting": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall_sensitivity": 1.0,
+      "specificity": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "brier_score": 0.0,
+      "confusion_matrix": {
+        "tn": 93,
+        "fp": 0,
+        "fn": 0,
+        "tp": 107
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 1.0,
+        "cv_f1_mean": 1.0,
+        "cv_roc_auc_mean": 1.0
+      }
+    },
+    "Logistic Regression": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall_sensitivity": 1.0,
+      "specificity": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "brier_score": 0.0,
+      "confusion_matrix": {
+        "tn": 93,
+        "fp": 0,
+        "fn": 0,
+        "tp": 107
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 1.0,
+        "cv_f1_mean": 1.0,
+        "cv_roc_auc_mean": 1.0
+      }
+    }
+  }
+}

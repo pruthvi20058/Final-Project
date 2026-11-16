@@ -1,0 +1,37 @@
+{
+  "model_name": "MediAgent Deep Neural Network Classifier",
+  "dl_technique": "Multi-Layer Perceptron (MLP Deep Dense Network)",
+  "architecture": "Input (6) -> Dense(128, ReLU) -> Dense(64, ReLU) -> Dense(32, ReLU) -> Output(4, Softmax)",
+  "optimizer": "Adam (lr=0.001, L2 penalty=0.0001)",
+  "regularization": "Dropout + Early Stopping + L2 Weight Decay",
+  "dataset": "mediagent_patient_records.csv",
+  "data_split": {
+    "total_samples": 550,
+    "train_samples": 440,
+    "test_samples": 110,
+    "split_ratio": "80% Train / 20% Test",
+    "split_method": "Stratified Random Sampling"
+  },
+  "metrics": {
+    "test_accuracy": 0.9455,
+    "f1_score": 0.9452,
+    "precision": 0.9468,
+    "recall": 0.9455,
+    "roc_auc": 0.9931,
+    "brier_score": 0.094,
+    "epochs_trained": 54
+  },
+  "features_used": [
+    "Age",
+    "Heart Rate (bpm)",
+    "Systolic BP (mmHg)",
+    "Diastolic BP (mmHg)",
+    "SpO2 (%)",
+    "Temperature (\u00b0C)"
+  ],
+  "target_classes": [
+    "Emergency",
+    "Semi-Urgent",
+    "Urgent"
+  ]
+}
