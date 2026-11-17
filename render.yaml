@@ -1,0 +1,15 @@
+services:
+  # ── Backend (Node.js + Python ML) ──────────────────────────────────────────
+  - type: web
+    name: mediagent-backend
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && pip install scikit-learn shap pandas numpy joblib
+    startCommand: node index.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    autoDeploy: true
