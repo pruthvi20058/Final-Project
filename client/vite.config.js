@@ -2,7 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  base: './',
+  // Use '/' for Vercel/Netlify; './' is kept for local preview compatibility
+  base: '/',
   plugins: [react()],
   server: {
     port: 5173,
@@ -12,5 +13,9 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    // Suppress large chunk warning (acceptable for this monolithic SPA)
+    chunkSizeWarningLimit: 1000
   }
 });

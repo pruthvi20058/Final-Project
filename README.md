@@ -4,8 +4,7 @@
 
 **Multi-Modal AI · Retrieval-Augmented Generation · Explainable ML · Multilingual NLP**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://mediagent-health.vercel.app)
-[![Backend](https://img.shields.io/badge/Backend-Render-46E3B7?style=for-the-badge&logo=render)](https://mediagent-backend.onrender.com)
+[![Backend Live](https://img.shields.io/badge/Backend-LIVE%20on%20Render-46E3B7?style=for-the-badge&logo=render)](https://mediagent-backend-nht2.onrender.com)
 [![GitHub](https://img.shields.io/badge/GitHub-pruthvi20058-181717?style=for-the-badge&logo=github)](https://github.com/pruthvi20058/Final-Project)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
@@ -25,11 +24,35 @@
 
 | Service | Platform | URL |
 |---------|----------|-----|
-| 🌐 Frontend (React/Vite) | Vercel | [mediagent-health.vercel.app](https://mediagent-health.vercel.app) |
-| ⚙️ Backend (Node.js/Express) | Render | [mediagent-backend.onrender.com](https://mediagent-backend.onrender.com) |
+| ⚙️ Backend (Node.js/Express + Python ML) | Render | [mediagent-backend-nht2.onrender.com](https://mediagent-backend-nht2.onrender.com) |
+| 🌐 Frontend (React/Vite) | Vercel | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpruthvi20058%2FFinal-Project&root-directory=client&env=VITE_API_URL&envDescription=Your%20Render%20backend%20URL&envLink=https%3A%2F%2Fmediagent-backend-nht2.onrender.com) |
 | 📦 Source Code | GitHub | [pruthvi20058/Final-Project](https://github.com/pruthvi20058/Final-Project) |
 
 > **Note**: The Render free tier spins down after 15 min of inactivity — the first API call may take ~30 seconds to wake up.
+
+### 🔗 Backend API Endpoints (Live)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/stats` | Dashboard statistics |
+| `GET /api/patients` | Patient list |
+| `POST /api/reports/upload` | Lab report upload & OCR |
+| `GET /api/reports/:id/prediction` | ML disease prediction |
+| `GET /api/reports/:id/xai` | SHAP explainability |
+| `POST /api/chat` | RAG-powered medical chatbot |
+| `POST /api/nlp/consultation` | Multilingual voice consultation |
+
+### 🌐 Deploy Your Own Frontend
+
+Click below to instantly deploy the frontend on Vercel (pre-configured with your backend URL):
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpruthvi20058%2FFinal-Project&root-directory=client&env=VITE_API_URL&envDescription=Render%20backend%20URL%20%E2%80%94%20set%20to%20https%3A%2F%2Fmediagent-backend-nht2.onrender.com&envLink=https%3A%2F%2Fmediagent-backend-nht2.onrender.com)
+
+**Vercel Configuration:**
+- Root Directory: `client`
+- Environment Variable: `VITE_API_URL` = `https://mediagent-backend-nht2.onrender.com`
+- Build Command: `npm install && npm run build` (auto-detected)
+- Output Directory: `dist`
 
 ---
 
@@ -41,7 +64,7 @@
 ├─────────────────────────┬──────────────────────────────────────┤
 │      Frontend           │          Backend                     │
 │   React 18 + Vite       │   Node.js / Express API             │
-│   Tailwind CSS          │   SQLite (better-sqlite3)           │
+│   Vanilla CSS           │   SQLite (better-sqlite3)           │
 │   Vercel CDN            │   Python ML subprocesses            │
 │                         │   Render.com hosting                │
 ├─────────────────────────┴──────────────────────────────────────┤
@@ -68,130 +91,107 @@
 | Typhoid | — | Guarded (no authenticated dataset found) | 🔒 Guarded |
 
 - **No synthetic patient data** used at any stage — strictly real, public datasets only
-- Soft-voting probability calibration, confusion matrix, ROC-AUC evaluation
-- Dataset provenance documented in `server/ml/data/DATASET_PROVENANCE.md`
+- Multi-class disease support with **soft-voting ensemble** for improved accuracy
+- Full **SHAP explainability** (TreeSHAP, LinearExplainer) for every prediction
 
-### 📊 Explainable AI (XAI) — SHAP
-- Real TreeSHAP / LinearExplainer integration (not approximations)
-- Feature attribution waterfall charts per prediction
-- Additive consistency verification (Σ SHAP = prediction - base value)
-- 13/13 SHAP test suite passes verified
+### 📄 OCR Lab Report Analysis
+- Supports **PDF** and **image** (PNG, JPEG) lab reports
+- Dual OCR pipeline: **Tesseract.js** + **PDF-parse**
+- Automatically maps extracted values to ML model features
+- Clinical reference range comparison for every biomarker
 
-### 📄 Multimodal OCR Lab Report Intake
-- PDF and image lab report upload
-- Tesseract.js OCR extraction → structured biomarker table
-- Canonical feature mapping to Pima schema for ML readiness check
-- Human-in-the-loop physician sign-off workflow
+### 🗣️ Multilingual Voice NLP
+- Voice input (via Web Speech API) + text input
+- Supports **12+ languages** (English, Hindi, Kannada, Tamil, Spanish, French, etc.)
+- Clinical entity extraction: symptoms, duration, severity
+- Text-to-speech response synthesis
 
-### 🤖 RAG-Powered Health Companion Chatbot
-- FAISS vector store with WHO, MoHFW, NCDC, CDC, NHS knowledge base
-- 6 disease topics: Dengue, Malaria, Typhoid, Chikungunya, Jaundice, Viral Fever
-- Emergency warning sign detection with urgent alert escalation
-- Mandatory medical safety disclaimer on every response
+### 💬 RAG Medical Chatbot
+- Retrieval-Augmented Generation grounded in medical knowledge base
+- Sources: ADA 2024, WHO, ESC, Cochrane systematic reviews
+- Evidence-linked, citation-backed responses with ICD-10 codes
 
-### 🌐 Multilingual Voice NLP Assistant
-- 10 Indian languages: Kannada, Hindi, Telugu, Tamil, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia
-- Browser Web Speech API + ElevenLabs neural TTS synthesis
-- Native script detection (Devanagari, Kannada, Tamil, etc.)
-
-### 💊 Medicine Information Guide
-- 17-field clinical monograph per drug (composition, dosage, contraindications, interactions)
-- OCR medicine strip scanner for packaging recognition
-- Ibuprofen ↔ Dengue contraindication guardrail enforced
+### 📊 XAI Dashboard
+- SHAP waterfall + feature importance charts
+- Calibrated risk scoring (Brier Score, confidence intervals)
+- Clinical action recommendations per prediction outcome
 
 ---
 
-## 🛠️ Tech Stack
-
-**Frontend**
-- React 18, Vite, Tailwind CSS
-- Recharts (data visualisation)
-- Web Speech API (voice input/output)
-
-**Backend**
-- Node.js 18+, Express 4
-- better-sqlite3 (embedded database)
-- Multer (file uploads), PDF-parse, Tesseract.js OCR, Sharp
-
-**ML / Python**
-- Scikit-learn (Logistic Regression, Random Forest)
-- SHAP (explainability)
-- Pandas, NumPy, Joblib
-
----
-
-## 💻 Local Development
+## 🛠️ Local Development
 
 ### Prerequisites
 - Node.js ≥ 18
-- Python ≥ 3.9 with pip
-- Git
+- Python ≥ 3.9 (for ML inference)
+- pip packages: `scikit-learn shap pandas numpy joblib`
 
-### Setup
+### Quick Start
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/pruthvi20058/Final-Project.git
 cd Final-Project
 
-# 2. Install all dependencies
-npm run install:all
-
-# 3. Install Python ML dependencies
+# 2. Install backend
+cd server
+npm install
 pip install scikit-learn shap pandas numpy joblib
 
-# 4. Start dev servers (backend + frontend concurrently)
+# 3. Start backend (runs on port 3001)
+node index.js
+
+# 4. In a new terminal — install frontend
+cd ../client
+npm install
+
+# 5. Create .env.local
+echo "VITE_API_URL=http://localhost:3001" > .env.local
+
+# 6. Start frontend dev server (runs on port 5173)
 npm run dev
 ```
 
-The app will be available at:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3001
+Open: **http://localhost:5173**
 
 ---
 
-## ☁️ Deployment Guide
+## 🌐 Production Deployment Guide
 
-### Deploy Backend to Render
-
+### Backend (Render)
 1. Go to [render.com](https://render.com) → **New Web Service**
-2. Connect your GitHub repo: `pruthvi20058/Final-Project`
-3. Set the following:
-   - **Root Directory**: `server`
-   - **Build Command**: `npm install && pip install scikit-learn shap pandas numpy joblib`
-   - **Start Command**: `node index.js`
-   - **Plan**: Free
-4. Deploy and copy the service URL (e.g. `https://mediagent-backend.onrender.com`)
+2. Connect GitHub → Select `pruthvi20058/Final-Project`
+3. Set **Root Directory**: `server`
+4. Build Command: `npm install && npm rebuild better-sqlite3 && npm rebuild sharp && pip install scikit-learn shap pandas numpy joblib`
+5. Start Command: `node index.js`
+6. **Free plan** is sufficient for demo/testing
+7. Your backend URL: `https://mediagent-backend-nht2.onrender.com`
 
-### Deploy Frontend to Vercel
-
-1. Go to [vercel.com](https://vercel.com) → **New Project**
-2. Import GitHub repo: `pruthvi20058/Final-Project`
-3. Set:
-   - **Framework Preset**: Vite
-   - **Root Directory**: `client`
-4. Add environment variable:
-   - `VITE_API_URL` = `https://mediagent-backend.onrender.com`
-5. Deploy → get your live URL
+### Frontend (Vercel)
+1. Go to [vercel.com](https://vercel.com) → **Import Project**
+2. Select `pruthvi20058/Final-Project`
+3. **Root Directory**: `client`
+4. **Environment Variables**: Add `VITE_API_URL` = `https://mediagent-backend-nht2.onrender.com`
+5. Click **Deploy** — Vercel runs `npm run build` automatically
+6. Your site will be live at a `*.vercel.app` URL
 
 ---
 
-## 📂 Project Structure
+## 📁 Project Structure
 
 ```
 Final-Project/
-├── client/                      # React frontend (Vite)
+├── client/                      # React 18 + Vite SPA
 │   ├── src/
-│   │   ├── pages/               # 15 application pages
-│   │   ├── components/          # Reusable UI components
-│   │   └── services/api.js      # Centralised API client
-│   ├── vercel.json              # Vercel deployment config
-│   └── vite.config.js
+│   │   ├── components/          # 15+ UI components (Dashboard, Prediction, XAI, Chat...)
+│   │   ├── services/api.js      # Centralized API service layer
+│   │   └── App.jsx              # Routing + layout
+│   ├── vercel.json              # SPA routing config
+│   └── vite.config.js           # Vite + proxy config
 │
-├── server/                      # Node.js / Express backend
-│   ├── agents/                  # Agent orchestration pipeline
-│   ├── db/                      # SQLite database & migrations
-│   ├── knowledge/               # FAISS RAG medical knowledge base
+├── server/                      # Node.js + Express API
+│   ├── agents/                  # Multi-agent pipeline (Triage, Diagnostic, RAG...)
+│   ├── db/database.js           # SQLite database layer
+│   ├── knowledge/medicalKB.js   # RAG medical knowledge base
 │   ├── ml/                      # ML models & Python inference scripts
 │   │   ├── data/                # Authentic clinical datasets (CSV)
 │   │   ├── models/              # Trained .joblib model artifacts
