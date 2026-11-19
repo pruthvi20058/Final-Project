@@ -46,6 +46,26 @@ function initTables() {
       FOREIGN KEY (patient_id) REFERENCES patients(id)
     );
 
+    CREATE TABLE IF NOT EXISTS consultations (
+      id TEXT PRIMARY KEY,
+      patient_id TEXT NOT NULL,
+      symptoms TEXT DEFAULT '[]',
+      vitals TEXT DEFAULT '{}',
+      chief_complaint TEXT DEFAULT '',
+      uploaded_images TEXT DEFAULT '[]',
+      triage_result TEXT,
+      diagnostic_result TEXT,
+      medication_result TEXT,
+      rag_result TEXT,
+      image_result TEXT,
+      guardrail_result TEXT,
+      final_report TEXT,
+      agent_trace TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (patient_id) REFERENCES patients(id)
+    );
+
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
@@ -405,6 +425,22 @@ function seedData() {
           guideStmt.run(guideId, diseaseId, g.guideline_type, g.content, g.source_id);
         }
       }
+    }
+
+    // Seed demo consultation if none exists
+    const consultationCount = db.prepare('SELECT COUNT(*) as c FROM consultations').get().c;
+    if (consultationCount === 0) {
+      db.prepare(`
+        INSERT INTO consultations (id, patient_id, symptoms, vitals, chief_complaint, triage_result, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'complete')
+      `).run(
+        'CON-1001',
+        'PAT-8001',
+        JSON.stringify(['mild fatigue', 'increased thirst', 'frequent urination']),
+        JSON.stringify({ bloodPressure: '135/85', heartRate: 78, temperature: 98.6 }),
+        'Routine follow-up for diabetes management and blood glucose monitoring',
+        JSON.stringify({ triageLevel: 'Routine', recommendation: 'Monitor fasting glucose and HbA1c' })
+      );
     }
   } catch (err) {
     console.warn('[DB] Health Companion seeding error:', err.message);

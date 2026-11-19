@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  // Use '/' for Vercel/Netlify; './' is kept for local preview compatibility
   base: '/',
   plugins: [react()],
   server: {
@@ -15,7 +14,6 @@ export default defineConfig({
     }
   },
   build: {
-    // Suppress large chunk warning (acceptable for this monolithic SPA)
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1200
   }
 });

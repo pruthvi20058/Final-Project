@@ -50,4 +50,14 @@ router.post('/check-interactions', (req, res) => {
   res.json(found);
 });
 
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'MediAgent Clinical Knowledge Base API',
+    totalConditions: conditions.length,
+    totalDrugInteractions: drugInteractions.length,
+    conditions: conditions.map(c => ({ id: c.id, name: c.name, icd10: c.icd10, category: c.category }))
+  });
+});
+
 module.exports = router;

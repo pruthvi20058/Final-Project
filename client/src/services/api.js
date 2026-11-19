@@ -1,10 +1,19 @@
 // MediAgent Central API Service connected to Express Backend & Trained ML Pipeline
 
 // In production, VITE_API_URL is set to the Render backend URL.
-// In local dev, relative '/api' is proxied by Vite to localhost:3001.
-const API_BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api`
-  : '/api';
+// Auto-detects production environments (Vercel, GitHub Pages, etc.) and defaults to live Render backend.
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_URL) {
+    const raw = import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
+    return raw.endsWith('/api') ? raw : `${raw}/api`;
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return 'https://mediagent-backend-nht2.onrender.com/api';
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 export const FALLBACK_REPORT = {
   id: 'REP-9001',

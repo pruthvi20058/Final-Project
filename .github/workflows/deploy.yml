@@ -30,14 +30,14 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        working-directory: client
-        run: npm install
+        run: |
+          cd client
+          npm install
 
       - name: Build client
-        working-directory: client
-        env:
-          VITE_API_URL: https://mediagent-backend-nht2.onrender.com
-        run: npm run build
+        run: |
+          cd client
+          npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
