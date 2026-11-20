@@ -113,8 +113,8 @@ function computeModelReadiness(report, patient = null) {
       // MUST NOT map HbA1c to plasma glucose!
       // MUST NOT map Urine Glucose to plasma glucose!
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         // Strict Exclusion Guards
         if (rawName.includes('hba1c') || rawName.includes('a1c') || rawName.includes('glycated') || normName === 'hba1c') {
@@ -149,7 +149,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = numVal;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name || 'Plasma Glucose',
             value: numVal,
             unit: unitStr,
             sourceType: 'laboratory_result'
@@ -163,8 +163,8 @@ function computeModelReadiness(report, patient = null) {
       // MUST NOT map systolic blood pressure to diastolic!
       // MUST NOT map ambiguous total blood pressure without distinction!
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         // Reject systolic
         if (rawName.includes('systolic') || rawName.includes('sbp')) {
@@ -175,7 +175,7 @@ function computeModelReadiness(report, patient = null) {
         const isGenericBp = rawName === 'blood pressure' || rawName === 'bp' || normName === 'blood_pressure';
         if (isGenericBp && !rawName.includes('diastolic') && !rawName.includes('dbp') && rawName !== 'pres') {
           // Check for composite BP string like "120/80" in source text or reference range
-          const sourceText = (item.source && item.source.text) ? item.source.text : (item.referenceRange || '');
+          const sourceText = (item.source && item.source.text) ? item.source.text : (item.referenceRange || item.reference_range || '');
           const compositeMatch = sourceText.match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
           if (compositeMatch) {
             const diastolicVal = parseFloat(compositeMatch[2]);
@@ -183,7 +183,7 @@ function computeModelReadiness(report, patient = null) {
               candidateValue = diastolicVal;
               candidateSource = {
                 resultId: item.id,
-                rawName: `${item.rawName || item.testName} (Diastolic component of ${compositeMatch[0]})`,
+                rawName: `${item.rawName || item.testName || item.raw_name || item.test_name} (Diastolic component of ${compositeMatch[0]})`,
                 value: diastolicVal,
                 unit: 'mmHg',
                 sourceType: 'laboratory_result'
@@ -193,7 +193,7 @@ function computeModelReadiness(report, patient = null) {
           }
 
           isAmbiguous = true;
-          rejectionReason = `Blood pressure entry "${item.rawName || item.testName}: ${item.value}" lacks explicit systolic/diastolic designation and cannot be safely mapped to diastolic pressure.`;
+          rejectionReason = `Blood pressure entry "${item.rawName || item.testName || item.raw_name || item.test_name}: ${item.value}" lacks explicit systolic/diastolic designation and cannot be safely mapped to diastolic pressure.`;
           continue;
         }
 
@@ -208,7 +208,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = parsedPres;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: item.units || item.unit || 'mmHg',
             sourceType: 'laboratory_result'
@@ -219,8 +219,8 @@ function computeModelReadiness(report, patient = null) {
     } else if (featName === 'skin') {
       // 3. Triceps Skin Fold Thickness (mm):
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         const isSkinMatch = normName === 'skin_fold' ||
           normName === 'skin' ||
@@ -235,7 +235,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = parsedSkin;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: item.units || item.unit || 'mm',
             sourceType: 'laboratory_result'
@@ -246,8 +246,8 @@ function computeModelReadiness(report, patient = null) {
     } else if (featName === 'insu') {
       // 4. 2-Hour Serum Insulin (uU/mL):
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         if (rawName.includes('antibody') || rawName.includes('igf')) {
           continue;
@@ -264,7 +264,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = parsedInsu;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: item.units || item.unit || 'uU/mL',
             sourceType: 'laboratory_result'
@@ -276,8 +276,8 @@ function computeModelReadiness(report, patient = null) {
       // 5. Body Mass Index (BMI, kg/m2):
       // Check lab results first
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         const isBmiMatch = normName === 'bmi' ||
           normName === 'mass' ||
@@ -290,7 +290,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = parsedBmi;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: 'kg/m2',
             sourceType: 'laboratory_result'
@@ -317,8 +317,8 @@ function computeModelReadiness(report, patient = null) {
       // 6. Diabetes Pedigree Function:
       // Must be a verified numeric score. DO NOT infer from unquantified medical history!
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         const isPedigreeMatch = normName === 'pedigree' ||
           normName === 'pedi' ||
@@ -331,7 +331,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = parsedPedi;
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: 'score',
             sourceType: 'laboratory_result'
@@ -343,8 +343,8 @@ function computeModelReadiness(report, patient = null) {
       // 7. Pregnancies:
       // Check lab results or clinical vitals
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
 
         const isPregMatch = normName === 'pregnancies' ||
           normName === 'preg' ||
@@ -357,7 +357,7 @@ function computeModelReadiness(report, patient = null) {
           candidateValue = Math.round(parsedPreg);
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name,
             value: candidateValue,
             unit: 'count',
             sourceType: 'laboratory_result'
@@ -380,9 +380,17 @@ function computeModelReadiness(report, patient = null) {
       // 8. Age:
       // Check lab results first (supports user manual addition, verification, and OCR extracted age parameter)
       for (const item of labResults) {
-        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-        const normName = (item.normalizedName || '').toLowerCase().trim();
-        const numVal = parseNumericValue(item.value);
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
+        let numVal = parseNumericValue(item.value);
+
+        // Fallback: extract age integer from rawName (e.g. "Age 50", "Age: 50", "Age-50")
+        if (numVal === null) {
+          const matchAgeInName = rawName.match(/\bage\D*(\d{1,3})/i);
+          if (matchAgeInName) {
+            numVal = parseInt(matchAgeInName[1], 10);
+          }
+        }
 
         const isAgeMatch = normName === 'age' ||
           normName === 'patient_age' ||
@@ -394,14 +402,15 @@ function computeModelReadiness(report, patient = null) {
           rawName.startsWith('age:') ||
           rawName.startsWith('age-') ||
           rawName.startsWith('age_') ||
+          rawName.startsWith('age 50') ||
           rawName.includes('patient age') ||
           /\bage\b/i.test(rawName);
 
-        if (isAgeMatch && numVal !== null) {
+        if (isAgeMatch && numVal !== null && numVal >= 1 && numVal <= 120) {
           candidateValue = Math.round(numVal);
           candidateSource = {
             resultId: item.id,
-            rawName: item.rawName || item.testName,
+            rawName: item.rawName || item.testName || item.raw_name || item.test_name || 'Age',
             value: candidateValue,
             unit: 'years',
             sourceType: 'laboratory_result'
@@ -411,7 +420,7 @@ function computeModelReadiness(report, patient = null) {
       }
 
       // If not present in lab results, fallback to verified patient demographics
-      if (candidateValue === null && demographicAge !== null && !isNaN(demographicAge)) {
+      if (candidateValue === null && demographicAge !== null && !isNaN(demographicAge) && demographicAge >= 1 && demographicAge <= 120) {
         candidateValue = Math.round(demographicAge);
         candidateSource = {
           value: candidateValue,

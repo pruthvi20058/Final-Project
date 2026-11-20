@@ -4,6 +4,7 @@
   "description": "MediAgent: Autonomous Clinical Decision Support System using Multi-Modal AI & RAG",
   "private": true,
   "scripts": {
+    "build": "cd client && npm install && npm run build",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && node index.js",
     "client": "cd client && npm run dev",

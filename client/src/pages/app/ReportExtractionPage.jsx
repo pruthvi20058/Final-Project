@@ -376,22 +376,55 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
 
           {/* CARD 2: DIABETES MODEL READINESS & CANONICAL FEATURE MAPPING */}
           {modelReadiness && (() => {
-            const availableCount = typeof modelReadiness.availableFeatures === 'number'
-              ? modelReadiness.availableFeatures
-              : (Array.isArray(modelReadiness.availableFeatures)
-                  ? modelReadiness.availableFeatures.length
-                  : (modelReadiness.availableFeatureNames ? modelReadiness.availableFeatureNames.length : 0));
+            const ageLabItem = labResults.find(l => {
+              const rn = (l.rawName || l.testName || '').toLowerCase().trim();
+              const nn = (l.normalizedName || '').toLowerCase().trim();
+              return nn === 'age' || nn.startsWith('age') || rn.startsWith('age') || /\bage\b/i.test(rn);
+            });
+            const ageVal = ageLabItem ? parseFloat(ageLabItem.value) : (report?.patientAge || null);
 
-            const missingList = Array.isArray(modelReadiness.missingFeatures)
-              ? modelReadiness.missingFeatures
-              : (modelReadiness.missingFeatureNames || []);
+            let effectiveReadiness = { ...modelReadiness };
+            if (ageVal && !isNaN(ageVal) && Array.isArray(effectiveReadiness.mappingDiagnostics)) {
+              const ageDiag = effectiveReadiness.mappingDiagnostics.find(d => d.feature === 'age');
+              if (ageDiag && ageDiag.status !== 'AVAILABLE') {
+                effectiveReadiness.mappingDiagnostics = effectiveReadiness.mappingDiagnostics.map(d =>
+                  d.feature === 'age'
+                    ? {
+                        ...d,
+                        status: 'AVAILABLE',
+                        value: Math.round(ageVal),
+                        unit: 'years',
+                        source: ageLabItem ? (ageLabItem.rawName || 'Age') : 'patient_demographics',
+                        reason: null
+                      }
+                    : d
+                );
+                const updatedMissing = (effectiveReadiness.missingFeatures || []).filter(f => f !== 'age');
+                effectiveReadiness.missingFeatures = updatedMissing;
+                effectiveReadiness.missingCount = updatedMissing.length;
+                effectiveReadiness.availableFeatures = 8 - updatedMissing.length;
+                if (updatedMissing.length === 0) {
+                  effectiveReadiness.status = 'READY';
+                }
+              }
+            }
 
-            const missingCount = typeof modelReadiness.missingCount === 'number'
-              ? modelReadiness.missingCount
+            const availableCount = typeof effectiveReadiness.availableFeatures === 'number'
+              ? effectiveReadiness.availableFeatures
+              : (Array.isArray(effectiveReadiness.availableFeatures)
+                  ? effectiveReadiness.availableFeatures.length
+                  : (effectiveReadiness.availableFeatureNames ? effectiveReadiness.availableFeatureNames.length : 0));
+
+            const missingList = Array.isArray(effectiveReadiness.missingFeatures)
+              ? effectiveReadiness.missingFeatures
+              : (effectiveReadiness.missingFeatureNames || []);
+
+            const missingCount = typeof effectiveReadiness.missingCount === 'number'
+              ? effectiveReadiness.missingCount
               : missingList.length;
 
-            const isReady = modelReadiness.status === 'READY';
-            const isInvalid = modelReadiness.status === 'INVALID_DATA';
+            const isReady = effectiveReadiness.status === 'READY';
+            const isInvalid = effectiveReadiness.status === 'INVALID_DATA';
 
             return (
               <div className="card table-card-elevated" style={{
@@ -440,13 +473,13 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                 </div>
 
                 {/* FEATURE MAPPING DIAGNOSTICS BREAKDOWN */}
-                {Array.isArray(modelReadiness.mappingDiagnostics) && modelReadiness.mappingDiagnostics.length > 0 && (
+                {Array.isArray(effectiveReadiness.mappingDiagnostics) && effectiveReadiness.mappingDiagnostics.length > 0 && (
                   <div style={{ background: '#090d16', borderRadius: 8, padding: 14, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 14 }}>
                     <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Feature Attribution Mapping Diagnostics
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {modelReadiness.mappingDiagnostics.map((diag, idx) => {
+                      {effectiveReadiness.mappingDiagnostics.map((diag, idx) => {
                         const isAvail = diag.status === 'AVAILABLE';
                         const isInv = diag.status === 'INVALID';
                         const isAmb = diag.status === 'AMBIGUOUS';

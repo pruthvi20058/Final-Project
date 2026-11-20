@@ -33,6 +33,29 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         predRes = FALLBACK_PREDICTION;
       }
 
+      // If prediction is missing or insufficient but age is present in lab results, trigger active on-demand screening
+      const hasAgeInLabs = (rep?.labResults || []).some(l => {
+        const rn = (l.rawName || l.testName || '').toLowerCase();
+        const nn = (l.normalizedName || '').toLowerCase();
+        return nn === 'age' || nn.startsWith('age') || rn.startsWith('age') || /\bage\b/i.test(rn);
+      }) || (rep?.patientAge !== undefined && rep?.patientAge !== null);
+
+      if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && hasAgeInLabs && rep?.id) {
+        try {
+          const runRes = await predictionService.predict(rep.id);
+          if (runRes && runRes.status === 'SUCCESS' && runRes.prediction) {
+            predRes = runRes.prediction;
+            setPred(predRes);
+            if (runRes.modelReadiness) setReadiness(runRes.modelReadiness);
+            setPageState('SUCCESS');
+            setLoading(false);
+            return;
+          }
+        } catch (predictErr) {
+          console.warn('[PredictionPage] Auto on-demand predict failed:', predictErr);
+        }
+      }
+
       if (predRes && predRes.status === 'SUCCESS' && (predRes.topPrediction || predRes.predictedClass)) {
         setPred(predRes);
         setPageState('SUCCESS');

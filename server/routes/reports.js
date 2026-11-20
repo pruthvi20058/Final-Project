@@ -258,7 +258,7 @@ router.get('/:id', (req, res) => {
 });
 
 // 5. GET /api/reports/:id/prediction — Retrieve report prediction with distinct existence semantics
-router.get('/:id/prediction', (req, res) => {
+router.get('/:id/prediction', async (req, res) => {
   try {
     const report = getReportRecord(req.params.id);
     if (!report) {
@@ -270,7 +270,20 @@ router.get('/:id/prediction', (req, res) => {
     }
 
     const readiness = computeModelReadiness(report);
-    const pred = getPredictionRecord(req.params.id);
+    let pred = getPredictionRecord(req.params.id);
+
+    // If report is READY and no prediction is saved, automatically generate & persist it
+    if (!pred && readiness.status === 'READY') {
+      try {
+        const autoPred = await generatePredictionForReport(report, readiness);
+        if (autoPred && autoPred.status === 'SUCCESS') {
+          savePredictionRecord(autoPred);
+          pred = autoPred;
+        }
+      } catch (autoErr) {
+        console.warn('[ReportsRoute] Auto-prediction generation failed on GET:', autoErr.message);
+      }
+    }
 
     // Case D: Report exists and valid prediction persisted
     if (pred) {
@@ -449,15 +462,25 @@ router.put('/:id/lab-results', async (req, res) => {
     saveLabResultsRecord(req.params.id, validatedResults);
 
     // Synchronize demographics if user verified or added an age parameter
-    const ageItem = validatedResults.find(l => (l.normalizedName === 'age' || /^age\b/i.test(l.testName || '') || /^age\b/i.test(l.rawName || '')));
-    if (ageItem && ageItem.value) {
-      const parsedAge = parseInt(ageItem.value, 10);
+    const ageItem = validatedResults.find(l => {
+      const rName = (l.rawName || l.testName || l.raw_name || l.test_name || '').toLowerCase();
+      const nName = (l.normalizedName || l.normalized_name || '').toLowerCase();
+      return nName === 'age' || nName.startsWith('age') || rName.startsWith('age') || /\bage\b/i.test(rName);
+    });
+    if (ageItem) {
+      let parsedAge = parseInt(ageItem.value, 10);
+      if (isNaN(parsedAge)) {
+        const m = (ageItem.rawName || ageItem.testName || '').match(/\bage\D*(\d{1,3})/i);
+        if (m) parsedAge = parseInt(m[1], 10);
+      }
       if (!isNaN(parsedAge) && parsedAge >= 1 && parsedAge <= 120) {
         try {
           const db = getDb();
           let currDemo = {};
-          if (report.demographics) {
-            currDemo = typeof report.demographics === 'string' ? JSON.parse(report.demographics) : report.demographics;
+          if (report.patientDemographics) {
+            currDemo = typeof report.patientDemographics === 'string' ? JSON.parse(report.patientDemographics) : { ...report.patientDemographics };
+          } else if (report.demographics) {
+            currDemo = typeof report.demographics === 'string' ? JSON.parse(report.demographics) : { ...report.demographics };
           }
           currDemo.age = parsedAge;
           db.prepare('UPDATE reports SET demographics = ? WHERE id = ?').run(JSON.stringify(currDemo), req.params.id);
