@@ -381,7 +381,23 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
               const nn = (l.normalizedName || '').toLowerCase().trim();
               return nn === 'age' || nn.startsWith('age') || rn.startsWith('age') || /\bage\b/i.test(rn);
             });
-            const ageVal = ageLabItem ? parseFloat(ageLabItem.value) : (report?.patientAge || null);
+            let ageVal = null;
+            if (ageLabItem) {
+              const p = parseFloat(ageLabItem.value);
+              if (!isNaN(p) && p >= 1 && p <= 120) {
+                ageVal = p;
+              } else {
+                const m = (ageLabItem.rawName || ageLabItem.testName || '').match(/\bage\D*(\d{1,3})/i);
+                if (m) {
+                  const pm = parseFloat(m[1]);
+                  if (!isNaN(pm) && pm >= 1 && pm <= 120) ageVal = pm;
+                }
+              }
+            }
+            if (ageVal === null && report?.patientAge !== undefined && report?.patientAge !== null) {
+              const pd = parseFloat(report.patientAge);
+              if (!isNaN(pd) && pd >= 1 && pd <= 120) ageVal = pd;
+            }
 
             let effectiveReadiness = { ...modelReadiness };
             if (ageVal && !isNaN(ageVal) && Array.isArray(effectiveReadiness.mappingDiagnostics)) {
