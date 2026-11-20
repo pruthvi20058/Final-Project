@@ -29,18 +29,36 @@ function getFeatureSchema() {
   return cachedSchema;
 }
 
+function parseNumericValue(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const match = trimmed.match(/^[-+]?[0-9]*\.?[0-9]+/);
+    if (match) {
+      const n = parseFloat(match[0]);
+      return isNaN(n) ? null : n;
+    }
+  }
+  return null;
+}
+
 /**
  * Safely maps extracted laboratory results and verified patient demographics
  * to the authoritative Pima Diabetes feature set.
  *
- * @param {Object} report - Complete report record with labResults and demographics
- * @param {Object} patient - Optional associated patient record from DB
+ * @param {Object|Array} report - Complete report record with labResults and demographics, or array of lab results
+ * @param {Object} patient - Optional associated patient record from DB or demographics object
  * @returns {Object} Structured model readiness and mapping diagnostics
  */
 function computeModelReadiness(report, patient = null) {
   const schema = getFeatureSchema();
   const canonicalFeatures = schema.canonical_features || [];
-  const labResults = (report && Array.isArray(report.labResults)) ? report.labResults : [];
+  
+  // Support both report object and raw labResults array
+  const labResults = (report && Array.isArray(report.labResults))
+    ? report.labResults
+    : (Array.isArray(report) ? report : []);
 
   const featureValues = {};
   const featureSources = {};
@@ -50,22 +68,32 @@ function computeModelReadiness(report, patient = null) {
   let hasInvalidFeature = false;
 
   // Extract patient age & vitals from verified demographics or patient profile
-  const demographicAge = (report && report.patientDemographics && typeof report.patientDemographics.age === 'number')
+  const rawDemoAge = (report && report.patientDemographics && report.patientDemographics.age !== undefined)
     ? report.patientDemographics.age
-    : (report && typeof report.patientAge === 'number')
-      ? report.patientAge
-      : (patient && typeof patient.age === 'number')
-        ? patient.age
-        : null;
+    : (report && report.demographics && report.demographics.age !== undefined)
+      ? report.demographics.age
+      : (report && report.patientAge !== undefined)
+        ? report.patientAge
+        : (patient && patient.age !== undefined)
+          ? patient.age
+          : (patient && patient.patientAge !== undefined)
+            ? patient.patientAge
+            : null;
 
-  const demographicGender = (report && report.patientDemographics && report.patientDemographics.sex)
-    ? report.patientDemographics.sex
-    : (patient && patient.gender)
-      ? patient.gender
-      : null;
+  const demographicAge = parseNumericValue(rawDemoAge);
 
-  const demographicWeight = (patient && typeof patient.weight === 'number') ? patient.weight : null;
-  const demographicHeight = (patient && typeof patient.height === 'number') ? patient.height : null;
+  const demographicGender = (report && report.patientDemographics && (report.patientDemographics.sex || report.patientDemographics.gender))
+    ? (report.patientDemographics.sex || report.patientDemographics.gender)
+    : (report && report.demographics && (report.demographics.sex || report.demographics.gender))
+      ? (report.demographics.sex || report.demographics.gender)
+      : (report && (report.patientGender || report.gender))
+        ? (report.patientGender || report.gender)
+        : (patient && (patient.gender || patient.sex))
+          ? (patient.gender || patient.sex)
+          : null;
+
+  const demographicWeight = parseNumericValue(patient && (patient.weight || patient.patientWeight));
+  const demographicHeight = parseNumericValue(patient && (patient.height || patient.patientHeight));
 
   // Evaluate each canonical feature in strict accordance with clinical criteria
   for (const fInfo of canonicalFeatures) {
@@ -107,8 +135,9 @@ function computeModelReadiness(report, patient = null) {
           rawName === 'glucose' ||
           rawName === 'plas';
 
-        if (isGlucoseMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          let numVal = item.value;
+        const parsedVal = parseNumericValue(item.value);
+        if (isGlucoseMatch && parsedVal !== null) {
+          let numVal = parsedVal;
           let unitStr = (item.units || item.unit || 'mg/dL').trim();
 
           // Safely handle mmol/L conversion to mg/dL if documented
@@ -174,12 +203,13 @@ function computeModelReadiness(report, patient = null) {
           rawName.includes('diastolic blood pressure') ||
           normName === 'diastolic_bp';
 
-        if (isExplicitDiastolic && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = item.value;
+        const parsedPres = parseNumericValue(item.value);
+        if (isExplicitDiastolic && parsedPres !== null) {
+          candidateValue = parsedPres;
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
-            value: item.value,
+            value: candidateValue,
             unit: item.units || item.unit || 'mmHg',
             sourceType: 'laboratory_result'
           };
@@ -193,18 +223,20 @@ function computeModelReadiness(report, patient = null) {
         const normName = (item.normalizedName || '').toLowerCase().trim();
 
         const isSkinMatch = normName === 'skin_fold' ||
+          normName === 'skin' ||
           rawName.includes('triceps') ||
           rawName.includes('skin fold') ||
           rawName.includes('skinfold') ||
           rawName.includes('skin thickness') ||
           rawName === 'skin';
 
-        if (isSkinMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = item.value;
+        const parsedSkin = parseNumericValue(item.value);
+        if (isSkinMatch && parsedSkin !== null) {
+          candidateValue = parsedSkin;
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
-            value: item.value,
+            value: candidateValue,
             unit: item.units || item.unit || 'mm',
             sourceType: 'laboratory_result'
           };
@@ -222,16 +254,18 @@ function computeModelReadiness(report, patient = null) {
         }
 
         const isInsulinMatch = normName === 'insulin' ||
+          normName === 'insu' ||
           rawName.includes('insulin') ||
           rawName.includes('serum insulin') ||
           rawName === 'insu';
 
-        if (isInsulinMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = item.value;
+        const parsedInsu = parseNumericValue(item.value);
+        if (isInsulinMatch && parsedInsu !== null) {
+          candidateValue = parsedInsu;
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
-            value: item.value,
+            value: candidateValue,
             unit: item.units || item.unit || 'uU/mL',
             sourceType: 'laboratory_result'
           };
@@ -246,16 +280,18 @@ function computeModelReadiness(report, patient = null) {
         const normName = (item.normalizedName || '').toLowerCase().trim();
 
         const isBmiMatch = normName === 'bmi' ||
+          normName === 'mass' ||
           rawName.includes('body mass index') ||
           rawName.includes('bmi') ||
           rawName === 'mass';
 
-        if (isBmiMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = item.value;
+        const parsedBmi = parseNumericValue(item.value);
+        if (isBmiMatch && parsedBmi !== null) {
+          candidateValue = parsedBmi;
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
-            value: item.value,
+            value: candidateValue,
             unit: 'kg/m2',
             sourceType: 'laboratory_result'
           };
@@ -285,16 +321,18 @@ function computeModelReadiness(report, patient = null) {
         const normName = (item.normalizedName || '').toLowerCase().trim();
 
         const isPedigreeMatch = normName === 'pedigree' ||
+          normName === 'pedi' ||
           rawName.includes('pedigree') ||
           rawName.includes('diabetes pedigree') ||
           rawName === 'pedi';
 
-        if (isPedigreeMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = item.value;
+        const parsedPedi = parseNumericValue(item.value);
+        if (isPedigreeMatch && parsedPedi !== null) {
+          candidateValue = parsedPedi;
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
-            value: item.value,
+            value: candidateValue,
             unit: 'score',
             sourceType: 'laboratory_result'
           };
@@ -309,12 +347,14 @@ function computeModelReadiness(report, patient = null) {
         const normName = (item.normalizedName || '').toLowerCase().trim();
 
         const isPregMatch = normName === 'pregnancies' ||
+          normName === 'preg' ||
           rawName.includes('pregnanc') ||
           rawName.includes('gravida') ||
           rawName === 'preg';
 
-        if (isPregMatch && typeof item.value === 'number' && !isNaN(item.value)) {
-          candidateValue = Math.round(item.value);
+        const parsedPreg = parseNumericValue(item.value);
+        if (isPregMatch && parsedPreg !== null) {
+          candidateValue = Math.round(parsedPreg);
           candidateSource = {
             resultId: item.id,
             rawName: item.rawName || item.testName,
@@ -338,8 +378,40 @@ function computeModelReadiness(report, patient = null) {
       }
     } else if (featName === 'age') {
       // 8. Age:
-      // Can come from verified patient demographics or lab results
-      if (typeof demographicAge === 'number' && !isNaN(demographicAge)) {
+      // Check lab results first (supports user manual addition, verification, and OCR extracted age parameter)
+      for (const item of labResults) {
+        const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
+        const normName = (item.normalizedName || '').toLowerCase().trim();
+        const numVal = parseNumericValue(item.value);
+
+        const isAgeMatch = normName === 'age' ||
+          normName === 'patient_age' ||
+          normName === 'years_old' ||
+          normName.startsWith('age') ||
+          rawName === 'age' ||
+          rawName === 'patient age' ||
+          rawName.startsWith('age ') ||
+          rawName.startsWith('age:') ||
+          rawName.startsWith('age-') ||
+          rawName.startsWith('age_') ||
+          rawName.includes('patient age') ||
+          /\bage\b/i.test(rawName);
+
+        if (isAgeMatch && numVal !== null) {
+          candidateValue = Math.round(numVal);
+          candidateSource = {
+            resultId: item.id,
+            rawName: item.rawName || item.testName,
+            value: candidateValue,
+            unit: 'years',
+            sourceType: 'laboratory_result'
+          };
+          break;
+        }
+      }
+
+      // If not present in lab results, fallback to verified patient demographics
+      if (candidateValue === null && demographicAge !== null && !isNaN(demographicAge)) {
         candidateValue = Math.round(demographicAge);
         candidateSource = {
           value: candidateValue,
@@ -347,22 +419,6 @@ function computeModelReadiness(report, patient = null) {
           sourceType: 'patient_demographics',
           details: 'Verified from patient demographics / clinical case header'
         };
-      } else {
-        // Fallback: check lab results for age entry
-        for (const item of labResults) {
-          const rawName = (item.rawName || item.testName || '').toLowerCase().trim();
-          if ((rawName === 'age' || rawName === 'patient age') && typeof item.value === 'number') {
-            candidateValue = Math.round(item.value);
-            candidateSource = {
-              resultId: item.id,
-              rawName: item.rawName || item.testName,
-              value: candidateValue,
-              unit: 'years',
-              sourceType: 'laboratory_result'
-            };
-            break;
-          }
-        }
       }
     }
 

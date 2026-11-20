@@ -87,25 +87,31 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     const val = parseFloat(newTestValue);
     if (isNaN(val)) return;
 
+    const trimmedName = newTestName.trim();
+    const isAgeParam = /^age\b/i.test(trimmedName) || /patient\s*age/i.test(trimmedName);
+
     // Clinical ontology lookup for realistic units and ranges
     const ontology = CLINICAL_ONTOLOGY.find(o =>
-      o.testName.toLowerCase() === newTestName.toLowerCase() ||
-      newTestName.toLowerCase().includes(o.testName.toLowerCase())
+      o.testName.toLowerCase() === trimmedName.toLowerCase() ||
+      trimmedName.toLowerCase().includes(o.testName.toLowerCase()) ||
+      (isAgeParam && o.normalizedName === 'age')
     );
 
-    const units = ontology ? ontology.defaultUnits : 'mg/dL';
-    const referenceRange = ontology ? ontology.defaultRange : 'Normal';
+    const units = ontology ? ontology.defaultUnits : (isAgeParam ? 'years' : 'mg/dL');
+    const referenceRange = ontology ? ontology.defaultRange : (isAgeParam ? '18–120' : 'Normal');
     let status = 'normal';
     if (ontology) {
       if (ontology.high && val > ontology.high) status = 'high';
       else if (ontology.low && val < ontology.low) status = 'low';
     }
 
+    const normName = isAgeParam ? 'age' : (ontology?.normalizedName || trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '_'));
+
     const newItem = {
       id: `LR-ADD-${Date.now().toString().slice(-4)}`,
-      testName: newTestName,
-      rawName: newTestName,
-      normalizedName: newTestName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+      testName: trimmedName,
+      rawName: trimmedName,
+      normalizedName: normName,
       value: val,
       units: units,
       referenceRange: referenceRange,

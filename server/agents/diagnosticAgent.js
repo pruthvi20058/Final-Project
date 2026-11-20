@@ -33,7 +33,8 @@ function analyze(symptoms, patientHistory, patientAge, patientGender) {
     });
 
     // Demographics
-    if (cond.risk_factors.some(rf => rf.includes('age over') && patientAge > parseInt(rf.match(/\d+/)?.[0] || 0))) score += 5;
+    const numAge = parseInt(patientAge, 10);
+    if (!isNaN(numAge) && cond.risk_factors.some(rf => rf.includes('age over') && numAge > parseInt(rf.match(/\d+/)?.[0] || 0))) score += 5;
     if (cond.risk_factors.some(rf => rf.toLowerCase().includes(patientGender?.toLowerCase() || ''))) score += 3;
 
     return {

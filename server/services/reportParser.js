@@ -696,6 +696,38 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
     }
   }
 
+  // Synchronize demographic age and lab parameters
+  if (patientDemographics.age !== null) {
+    const hasAgeLab = results.some(r => r.normalizedName === 'age' || /^age\b/i.test(r.testName || '') || /^age\b/i.test(r.rawName || ''));
+    if (!hasAgeLab) {
+      results.unshift({
+        id: `LR-DEMO-AGE`,
+        testName: 'Age',
+        rawName: `Age ${patientDemographics.age}`,
+        normalizedName: 'age',
+        value: patientDemographics.age,
+        unit: 'years',
+        units: 'years',
+        referenceRange: '18-120',
+        status: 'NORMAL',
+        quality: 'VALID',
+        source: { page: 1, text: `Demographics Age: ${patientDemographics.age}` },
+        extractionMethod: extractionMethod,
+        confidence: 100,
+        validatedByUser: true
+      });
+    }
+  } else {
+    // If results contains an age lab item, synchronize it into patientDemographics.age
+    const ageLab = results.find(r => r.normalizedName === 'age' || /^age\b/i.test(r.testName || '') || /^age\b/i.test(r.rawName || ''));
+    if (ageLab && ageLab.value) {
+      const aNum = parseInt(ageLab.value, 10);
+      if (!isNaN(aNum) && aNum >= 1 && aNum <= 120) {
+        patientDemographics.age = aNum;
+      }
+    }
+  }
+
   return {
     results,
     patientDemographics,

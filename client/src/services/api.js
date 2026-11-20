@@ -335,8 +335,16 @@ export const DEMO_EVALUATION = {
 };
 
 export const CLINICAL_ONTOLOGY = [
-  { testName: 'Glucose (Fasting)', defaultUnits: 'mg/dL', defaultRange: '70–99', low: 70, high: 99, criticalHigh: 200 },
-  { testName: 'HbA1c', defaultUnits: '%', defaultRange: '4.0–5.6', low: 4.0, high: 5.6, criticalHigh: 9.0 },
+  { testName: 'Age', defaultUnits: 'years', defaultRange: '18–120', low: 18, high: 120, normalizedName: 'age' },
+  { testName: 'Patient Age', defaultUnits: 'years', defaultRange: '18–120', low: 18, high: 120, normalizedName: 'age' },
+  { testName: 'Glucose (Fasting)', defaultUnits: 'mg/dL', defaultRange: '70–99', low: 70, high: 99, criticalHigh: 200, normalizedName: 'glucose' },
+  { testName: 'HbA1c', defaultUnits: '%', defaultRange: '4.0–5.6', low: 4.0, high: 5.6, criticalHigh: 9.0, normalizedName: 'hba1c' },
+  { testName: 'Diastolic Blood Pressure', defaultUnits: 'mmHg', defaultRange: '60–80', low: 60, high: 80, criticalHigh: 120, normalizedName: 'diastolic_bp' },
+  { testName: 'Body Mass Index (BMI)', defaultUnits: 'kg/m²', defaultRange: '18.5–24.9', low: 18.5, high: 24.9, criticalHigh: 40, normalizedName: 'bmi' },
+  { testName: '2-Hour Serum Insulin', defaultUnits: 'μU/mL', defaultRange: '16–166', low: 16, high: 166, criticalHigh: 300, normalizedName: 'insulin' },
+  { testName: 'Triceps Skinfold Thickness', defaultUnits: 'mm', defaultRange: '10–30', low: 10, high: 30, criticalHigh: 60, normalizedName: 'skin_fold' },
+  { testName: 'Diabetes Pedigree Function', defaultUnits: 'score', defaultRange: '< 0.5', low: 0.05, high: 2.5, normalizedName: 'pedigree' },
+  { testName: 'Pregnancies', defaultUnits: 'count', defaultRange: '0–10', low: 0, high: 20, normalizedName: 'pregnancies' },
   { testName: 'Troponin I', defaultUnits: 'ng/mL', defaultRange: '< 0.04', low: 0, high: 0.04, criticalHigh: 1.0 },
   { testName: 'CK-MB', defaultUnits: 'ng/mL', defaultRange: '0–5', low: 0, high: 5, criticalHigh: 25 },
   { testName: 'BNP', defaultUnits: 'pg/mL', defaultRange: '< 100', low: 0, high: 100, criticalHigh: 400 },

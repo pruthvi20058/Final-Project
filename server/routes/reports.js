@@ -448,6 +448,25 @@ router.put('/:id/lab-results', async (req, res) => {
     const validatedResults = labResults.map(l => ({ ...l, validatedByUser: true }));
     saveLabResultsRecord(req.params.id, validatedResults);
 
+    // Synchronize demographics if user verified or added an age parameter
+    const ageItem = validatedResults.find(l => (l.normalizedName === 'age' || /^age\b/i.test(l.testName || '') || /^age\b/i.test(l.rawName || '')));
+    if (ageItem && ageItem.value) {
+      const parsedAge = parseInt(ageItem.value, 10);
+      if (!isNaN(parsedAge) && parsedAge >= 1 && parsedAge <= 120) {
+        try {
+          const db = getDb();
+          let currDemo = {};
+          if (report.demographics) {
+            currDemo = typeof report.demographics === 'string' ? JSON.parse(report.demographics) : report.demographics;
+          }
+          currDemo.age = parsedAge;
+          db.prepare('UPDATE reports SET demographics = ? WHERE id = ?').run(JSON.stringify(currDemo), req.params.id);
+        } catch (demoSyncErr) {
+          console.warn('[ReportsRoute] Failed to sync demographics age:', demoSyncErr.message);
+        }
+      }
+    }
+
     const updatedReport = getReportRecord(req.params.id);
     const updatedReadiness = computeModelReadiness(updatedReport);
     logReadinessDiagnostics(updatedReport.id, updatedReport.labResults || [], updatedReadiness);
@@ -620,7 +639,7 @@ router.get('/:id/risk', (req, res) => {
       isAbstain = Boolean(pred.uncertainty?.isAbstain);
     } else {
       const demographics = report.patientDemographics || {};
-      const readiness = computeModelReadiness(reportLabResults, demographics);
+      const readiness = computeModelReadiness(report);
       const availCount = readiness.availableFeatures !== undefined ? readiness.availableFeatures : (readiness.availableCount || 0);
       dataCompleteness = Math.round((availCount / 8) * 100);
 
