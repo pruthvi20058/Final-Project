@@ -10,6 +10,9 @@
     "client": "cd client && npm run dev",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install"
   },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "concurrently": "^8.2.2"
   }
