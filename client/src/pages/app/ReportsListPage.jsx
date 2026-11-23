@@ -55,6 +55,15 @@ export default function ReportsListPage({ onNavigate, onSelectReport }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>{r.fileType === 'pdf' ? '📕' : '🖼️'}</span>
                     <span>{r.filename}</span>
+                    {r.disease && (
+                      <span style={{
+                        fontSize: '0.68rem', padding: '2px 6px', borderRadius: 4, fontWeight: 700,
+                        background: r.disease === 'chikungunya' ? 'rgba(168,85,247,0.15)' : r.disease === 'dengue' ? 'rgba(239,68,68,0.15)' : r.disease === 'malaria' ? 'rgba(234,179,8,0.15)' : r.disease === 'typhoid' ? 'rgba(249,115,22,0.15)' : 'rgba(0,212,170,0.15)',
+                        color: r.disease === 'chikungunya' ? '#c084fc' : r.disease === 'dengue' ? '#f87171' : r.disease === 'malaria' ? '#fbbf24' : r.disease === 'typhoid' ? '#fb923c' : '#00d4aa'
+                      }}>
+                        {r.disease.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td style={{ padding: '12px 4px', color: 'var(--text-secondary)' }}>{r.patientName}</td>

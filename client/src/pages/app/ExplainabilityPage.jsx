@@ -3,7 +3,16 @@ import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import { predictionService, reportService, FALLBACK_XAI, FALLBACK_REPORT } from '../../services/api';
 
+const DISEASES = [
+  { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
+  { id: 'chikungunya', label: 'Chikungunya', icon: '🦴' },
+  { id: 'dengue', label: 'Dengue Fever', icon: '🩸' },
+  { id: 'malaria', label: 'Malaria', icon: '🦟' },
+  { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
+];
+
 export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001', onNavigate }) {
+  const [selectedDisease, setSelectedDisease] = useState(null);
   const [xai, setXai] = useState(FALLBACK_XAI);
   const [report, setReport] = useState(FALLBACK_REPORT);
 
@@ -13,7 +22,21 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
       try {
         const activeId = reportId || (predictionId ? predictionId.replace('PRED-', '') : 'REP-9001');
         const r = await reportService.getById(activeId);
-        const data = await predictionService.getXAI(r?.id || activeId);
+        let activeDisease = selectedDisease;
+        if (!activeDisease && r) {
+          const meta = [r.disease || '', r.filename || '', r.chiefComplaint || ''].join(' ').toLowerCase();
+          if (/chikungunya|chikv|polyarthralgia/i.test(meta)) activeDisease = 'chikungunya';
+          else if (/dengue|ns1/i.test(meta)) activeDisease = 'dengue';
+          else if (/malaria|plasmodium/i.test(meta)) activeDisease = 'malaria';
+          else if (/typhoid|widal/i.test(meta)) activeDisease = 'typhoid';
+          else activeDisease = 'diabetes';
+          setSelectedDisease(activeDisease);
+        } else if (!activeDisease) {
+          activeDisease = 'diabetes';
+          setSelectedDisease('diabetes');
+        }
+
+        const data = await predictionService.getXAI(r?.id || activeId, activeDisease);
         if (mounted && data) {
           if (r) setReport(r);
           setXai(data);
@@ -24,7 +47,7 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
     }
     loadXAI();
     return () => { mounted = false; };
-  }, [predictionId, reportId]);
+  }, [predictionId, reportId, selectedDisease]);
 
   if (!xai || !report) {
     return (
@@ -34,6 +57,8 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
       </div>
     );
   }
+
+  const currentDisease = selectedDisease || 'diabetes';
 
   return (
     <div className="fade-in">
@@ -49,6 +74,31 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
       </div>
 
       <SafetyDisclaimer compact />
+
+      {/* DISEASE SELECTOR TABS */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {DISEASES.map(d => {
+          const isSel = currentDisease === d.id;
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => setSelectedDisease(d.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
+                color: isSel ? '#090d16' : '#94a3b8',
+                border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>{d.icon}</span>
+              <span>{d.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="grid-2">
         {/* LEFT COLUMN: SHAP FEATURE IMPORTANCE CHART */}

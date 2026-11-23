@@ -370,6 +370,7 @@ export const reportService = {
     if (uploadPayload.patientId) formData.append('patientId', uploadPayload.patientId);
     if (uploadPayload.symptoms) formData.append('symptoms', uploadPayload.symptoms);
     if (uploadPayload.history) formData.append('history', uploadPayload.history);
+    if (uploadPayload.disease) formData.append('disease', uploadPayload.disease);
 
     const res = await fetch(`${API_BASE}/reports/upload`, {
       method: 'POST',

@@ -13,7 +13,7 @@ const DISEASES = [
 ];
 
 export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
-  const [selectedDisease, setSelectedDisease] = useState('diabetes');
+  const [selectedDisease, setSelectedDisease] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'SUCCESS' | 'ERROR'
   const [pred, setPred] = useState(FALLBACK_PREDICTION);
@@ -21,24 +21,40 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [readiness, setReadiness] = useState(FALLBACK_REPORT.modelReadiness);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const loadData = async () => {
+  const loadData = async (targetDisease = selectedDisease) => {
     try {
       setLoading(true);
       let rep = null;
       try {
-        rep = await reportService.getById(reportId || 'REP-9001', selectedDisease);
+        rep = await reportService.getById(reportId || 'REP-9001', targetDisease);
       } catch (repErr) {
         rep = FALLBACK_REPORT;
       }
 
       setReport(rep || FALLBACK_REPORT);
+
+      // Auto-detect disease if targetDisease not explicitly chosen
+      let activeDisease = targetDisease;
+      if (!activeDisease && rep) {
+        const meta = [rep.disease || '', rep.filename || '', rep.chiefComplaint || ''].join(' ').toLowerCase();
+        if (/chikungunya|chikv|polyarthralgia/i.test(meta)) activeDisease = 'chikungunya';
+        else if (/dengue|ns1/i.test(meta)) activeDisease = 'dengue';
+        else if (/malaria|plasmodium/i.test(meta)) activeDisease = 'malaria';
+        else if (/typhoid|widal/i.test(meta)) activeDisease = 'typhoid';
+        else activeDisease = 'diabetes';
+        setSelectedDisease(activeDisease);
+      } else if (!activeDisease) {
+        activeDisease = 'diabetes';
+        setSelectedDisease('diabetes');
+      }
+
       const repReadiness = (rep && rep.modelReadiness) || FALLBACK_REPORT.modelReadiness;
       setReadiness(repReadiness);
 
       // Step 2: Query prediction endpoint for this verified report and disease
       let predRes = null;
       try {
-        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', selectedDisease);
+        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
       } catch {
         predRes = FALLBACK_PREDICTION;
       }
@@ -46,7 +62,7 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
       // If prediction is missing or insufficient, trigger active on-demand screening
       if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && rep?.id) {
         try {
-          const runRes = await predictionService.predict(rep.id, selectedDisease);
+          const runRes = await predictionService.predict(rep.id, activeDisease);
           if (runRes && runRes.status === 'SUCCESS' && runRes.prediction) {
             predRes = runRes.prediction;
             setPred(predRes);
@@ -82,7 +98,7 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   };
 
   useEffect(() => {
-    loadData();
+    loadData(selectedDisease);
   }, [reportId, selectedDisease]);
 
   // LOADING STATE
@@ -490,11 +506,15 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', flexWrap: 'wrap', gap: 10 }}>
           <div>
             <span style={{ color: 'var(--text-tertiary)' }}>Model Architecture: </span>
-            <strong style={{ color: '#fff' }}>{pred?.modelName || 'Pima Diabetes Classifier'}</strong>
+            <strong style={{ color: '#fff' }}>
+              {pred?.modelName || (selectedDisease === 'chikungunya' ? 'MediAgent Chikungunya Notification Classifier (Random Forest)' : selectedDisease === 'diabetes' ? 'MediAgent Pima Diabetes Classifier' : `MediAgent ${selectedDisease ? selectedDisease.toUpperCase() : 'MULTI-DISEASE'} Classifier`)}
+            </strong>
           </div>
           <div>
             <span style={{ color: 'var(--text-tertiary)' }}>Model Version: </span>
-            <strong style={{ color: '#00d4aa' }}>{pred?.modelVersion || 'v2.0.0-pima-diabetes'}</strong>
+            <strong style={{ color: '#00d4aa' }}>
+              {pred?.modelVersion || (selectedDisease === 'chikungunya' ? 'v1.0.0-chikungunya-sinan' : selectedDisease === 'diabetes' ? 'v2.0.0-pima-diabetes' : `v1.0.0-${selectedDisease || 'general'}`)}
+            </strong>
           </div>
           <div>
             <span style={{ color: 'var(--text-tertiary)' }}>Inference Source: </span>

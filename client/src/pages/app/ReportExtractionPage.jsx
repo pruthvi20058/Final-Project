@@ -12,7 +12,8 @@ const DISEASES = [
 ];
 
 export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate }) {
-  const [selectedDisease, setSelectedDisease] = useState('diabetes');
+  const [selectedDisease, setSelectedDisease] = useState(null);
+  const [diseaseInitialized, setDiseaseInitialized] = useState(false);
   const [report, setReport] = useState(FALLBACK_REPORT);
   const [labResults, setLabResults] = useState(FALLBACK_REPORT.labResults);
   const [modelReadiness, setModelReadiness] = useState(FALLBACK_REPORT.modelReadiness);
@@ -32,6 +33,22 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
         if (mounted && data) {
           setReport(data);
           setLabResults(data.labResults || FALLBACK_REPORT.labResults);
+
+          if (!diseaseInitialized) {
+            const detected = data.disease || (
+              /chikungunya|chikv|polyarthralgia/i.test(data.filename || '') ? 'chikungunya' :
+              /dengue|ns1/i.test(data.filename || '') ? 'dengue' :
+              /malaria|plasmodium/i.test(data.filename || '') ? 'malaria' :
+              /typhoid|widal/i.test(data.filename || '') ? 'typhoid' : null
+            );
+            if (detected && detected !== selectedDisease) {
+              setSelectedDisease(detected);
+              setDiseaseInitialized(true);
+              return;
+            }
+            setDiseaseInitialized(true);
+          }
+
           if (data.modelReadiness) {
             setModelReadiness(data.modelReadiness);
           }
@@ -451,8 +468,9 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
             const isReady = effectiveReadiness.status === 'READY';
             const isInvalid = effectiveReadiness.status === 'INVALID_DATA';
 
+            const currentDisease = selectedDisease || 'diabetes';
             const totalRequired = effectiveReadiness.requiredFeaturesCount ||
-              (effectiveReadiness.mappingDiagnostics ? effectiveReadiness.mappingDiagnostics.length : (selectedDisease === 'diabetes' ? 8 : 6));
+              (effectiveReadiness.mappingDiagnostics ? effectiveReadiness.mappingDiagnostics.length : (currentDisease === 'diabetes' ? 8 : 6));
 
             return (
               <div className="card table-card-elevated" style={{
@@ -463,12 +481,15 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                 {/* DISEASE SELECTOR PILLS */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                   {DISEASES.map(d => {
-                    const isSel = selectedDisease === d.id;
+                    const isSel = currentDisease === d.id;
                     return (
                       <button
                         key={d.id}
                         type="button"
-                        onClick={() => setSelectedDisease(d.id)}
+                        onClick={() => {
+                          setSelectedDisease(d.id);
+                          setDiseaseInitialized(true);
+                        }}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
                           borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
@@ -490,12 +511,12 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                     <span style={{ fontSize: '1.2rem' }}>🩺</span>
                     <div>
                       <h4 style={{ color: '#fff', fontSize: '0.98rem', margin: 0 }}>
-                        {selectedDisease.toUpperCase()} Screening Readiness & Feature Mapping
+                        {currentDisease.toUpperCase()} Screening Readiness & Feature Mapping
                       </h4>
                       <p style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)', margin: '3px 0 0 0' }}>
-                        {selectedDisease === 'diabetes'
+                        {currentDisease === 'diabetes'
                           ? 'Pima Indian Diabetes Model requires 8 numerical canonical screening features.'
-                          : `${selectedDisease.toUpperCase()} module evaluates independent disease features.`}
+                          : `${currentDisease.toUpperCase()} module evaluates independent disease features.`}
                       </p>
                     </div>
                   </div>

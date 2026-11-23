@@ -357,23 +357,51 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
   });
 
   const isPositive = mlResult.rawTargetClass === 1 || rawProbability >= 0.5;
+
+  let diseaseDisplayName = 'Type 2 Diabetes Mellitus';
+  let diseaseNegativeName = 'Low Risk / Negative for Diabetes';
+  let diseasePosIcd = 'E11.9';
+  let diseaseNegIcd = 'Z13.1';
+
+  if (targetDisease === 'chikungunya') {
+    diseaseDisplayName = 'Chikungunya Virus Disease';
+    diseaseNegativeName = 'Chikungunya Negative / Febrile Control';
+    diseasePosIcd = 'A92.0';
+    diseaseNegIcd = 'Z03.8';
+  } else if (targetDisease === 'dengue') {
+    diseaseDisplayName = 'Dengue Fever / Acute Flavivirus Infection';
+    diseaseNegativeName = 'Dengue Negative / Other Febrile Illness';
+    diseasePosIcd = 'A90';
+    diseaseNegIcd = 'Z03.8';
+  } else if (targetDisease === 'malaria') {
+    diseaseDisplayName = 'Malaria (Plasmodium Parasitemia)';
+    diseaseNegativeName = 'Malaria Negative';
+    diseasePosIcd = 'B54';
+    diseaseNegIcd = 'Z03.8';
+  } else if (targetDisease === 'typhoid') {
+    diseaseDisplayName = 'Typhoid (Enteric Fever - S. Typhi)';
+    diseaseNegativeName = 'Typhoid Negative';
+    diseasePosIcd = 'A01.0';
+    diseaseNegIcd = 'Z03.8';
+  }
+
   const topPrediction = {
-    disease: isPositive ? 'Type 2 Diabetes Mellitus' : 'Low Risk / Negative for Diabetes',
+    disease: isPositive ? diseaseDisplayName : diseaseNegativeName,
     probability: displayPct,
     severity: isPositive ? 'high' : 'low',
-    icd10: isPositive ? 'E11.9' : 'Z13.1',
+    icd10: isPositive ? diseasePosIcd : diseaseNegIcd,
     reasoning: mlResult.explanation && mlResult.explanation.topPositiveFactors && mlResult.explanation.topPositiveFactors.length > 0
       ? `Model risk probability driven primarily by: ${mlResult.explanation.topPositiveFactors.join(', ')}.`
-      : (isPositive ? 'Elevated probability based on Pima model features.' : 'Laboratory parameters indicate low risk for Type 2 Diabetes.'),
+      : (isPositive ? `Elevated clinical probability for ${diseaseDisplayName}.` : `Laboratory parameters indicate low risk for ${diseaseDisplayName}.`),
     supportingFeatures: (report.labResults || []).filter(l => l.status === 'HIGH' || l.status === 'ABNORMAL').map(l => `${l.testName}: ${l.value} ${l.units || ''}`)
   };
 
   const differentials = [
     {
-      disease: isPositive ? 'Pre-diabetes / Impaired Fasting Glucose' : 'Type 2 Diabetes Mellitus',
+      disease: isPositive ? `Subclinical / Impaired Presentation (${diseaseDisplayName})` : diseaseDisplayName,
       probability: isPositive ? Math.max(0, Math.round((100 - displayPct) * 10) / 10) : displayPct,
       severity: 'moderate',
-      icd10: isPositive ? 'R73.01' : 'E11.9'
+      icd10: isPositive ? 'R69' : diseasePosIcd
     }
   ];
 
@@ -386,11 +414,13 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
 
   if (patientSymptoms.length > 0) {
     try {
+      const patientAge = report.patientAge || (report.patientDemographics && report.patientDemographics.age) || null;
+      const patientGender = report.patientGender || (report.patientDemographics && report.patientDemographics.sex) || null;
       const sympResult = diagnosticAgent.analyze(
         patientSymptoms,
         [],
-        demographics?.age,
-        demographics?.sex
+        patientAge,
+        patientGender
       );
       if (sympResult && sympResult.differentialDiagnoses && sympResult.differentialDiagnoses.length > 0) {
         sympResult.differentialDiagnoses.slice(0, 3).forEach(dx => {
@@ -441,9 +471,10 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
   return {
     id: predId,
     reportId: report.id,
+    disease: targetDisease,
     status: 'SUCCESS',
-    modelName: mlResult.modelName,
-    modelVersion: mlResult.modelVersion,
+    modelName: mlResult.modelName || `MediAgent ${targetDisease.toUpperCase()} Classifier`,
+    modelVersion: mlResult.modelVersion || (targetDisease === 'diabetes' ? 'v2.0.0-pima-diabetes' : `v1.0.0-${targetDisease}`),
     datasetProvenance: mlResult.datasetProvenance,
     predictedClass: topClass,
     probability: rawProbability, // Exact float decimal invariant (e.g. 0.7026)

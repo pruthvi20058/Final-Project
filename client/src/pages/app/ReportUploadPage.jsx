@@ -7,6 +7,7 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [patientId, setPatientId] = useState('');
+  const [disease, setDisease] = useState('');
   const [symptoms, setSymptoms] = useState('');
   const [history, setHistory] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -40,6 +41,7 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
       const result = await reportService.upload({
         file,
         patientId,
+        disease,
         symptoms,
         history
       });
@@ -138,6 +140,18 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
         {/* RIGHT: OPTIONAL METADATA */}
         <div className="card">
           <h4 style={{ color: '#fff', marginBottom: 16 }}>2. Patient & Clinical Context (Optional)</h4>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Target Clinical Disease Module</label>
+            <select className="form-select" value={disease} onChange={e => setDisease(e.target.value)}>
+              <option value="">Auto-Detect from Lab Document / File Name</option>
+              <option value="chikungunya">🦴 Chikungunya Arboviral Disease (ICD-10: A92.0)</option>
+              <option value="dengue">🩸 Dengue Fever (ICD-10: A90)</option>
+              <option value="malaria">🦟 Malaria (ICD-10: B54)</option>
+              <option value="typhoid">🌡️ Typhoid Fever (ICD-10: A01.0)</option>
+              <option value="diabetes">🩺 Type 2 Diabetes Mellitus (ICD-10: E11.9)</option>
+            </select>
+          </div>
 
           <div className="form-group" style={{ marginBottom: 14 }}>
             <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Patient Identification</label>

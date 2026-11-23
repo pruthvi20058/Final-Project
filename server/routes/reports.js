@@ -119,6 +119,23 @@ router.post('/upload', singleFileUpload, async (req, res) => {
     console.log(`PARSED RESULTS:`, JSON.stringify(labResults.map(r => `${r.rawName} = ${r.value} ${r.unit}`), null, 2));
     console.log(`==================================================\n`);
 
+    // Disease Detection from User Form, Filename, Symptoms, or Extracted Test Results
+    let detectedDisease = (req.body.disease || '').toLowerCase().trim();
+    if (!detectedDisease) {
+      const combinedMeta = [
+        file.originalname,
+        rawOcrText,
+        req.body.symptoms || '',
+        labResults.map(l => l.rawName || l.testName || '').join(' ')
+      ].join(' ').toLowerCase();
+
+      if (/chikungunya|chikv|polyarthralgia/i.test(combinedMeta)) detectedDisease = 'chikungunya';
+      else if (/dengue|ns1|breakbone/i.test(combinedMeta)) detectedDisease = 'dengue';
+      else if (/malaria|plasmodium|rigor/i.test(combinedMeta)) detectedDisease = 'malaria';
+      else if (/typhoid|widal|salmonella|enteric/i.test(combinedMeta)) detectedDisease = 'typhoid';
+      else detectedDisease = 'diabetes';
+    }
+
     // Form Report DB Object
     const reportObj = {
       id: reportId,
@@ -130,7 +147,7 @@ router.post('/upload', singleFileUpload, async (req, res) => {
       file_size: file.size,
       raw_ocr_text: rawOcrText,
       ocr_confidence: ocrConfidence,
-      chief_complaint: req.body.symptoms || 'Patient uploaded laboratory report for automated clinical analysis.',
+      chief_complaint: req.body.symptoms || `Patient uploaded laboratory report for automated ${detectedDisease} analysis.`,
       symptoms: req.body.symptoms || '',
       history: req.body.history || '',
       status: 'analyzed',
@@ -142,16 +159,19 @@ router.post('/upload', singleFileUpload, async (req, res) => {
     saveLabResultsRecord(reportId, labResults);
 
     const savedReport = getReportRecord(reportId);
+    savedReport.disease = detectedDisease;
 
-    // Compute Model Readiness with Authoritative Canonical Schema Mapping
-    const modelReadiness = computeModelReadiness(savedReport);
-    logReadinessDiagnostics(reportId, labResults, modelReadiness);
+    // Compute Model Readiness for the Detected Disease
+    const modelReadiness = computeDiseaseModelReadiness(savedReport, detectedDisease);
+    if (detectedDisease === 'diabetes') {
+      logReadinessDiagnostics(reportId, labResults, modelReadiness);
+    }
 
-    // Run ML Prediction Engine with Safe Gating
-    const predictionObj = await generatePredictionForReport(savedReport, modelReadiness);
+    // Run ML Prediction Engine with Safe Gating for the Detected Disease
+    const predictionObj = await generatePredictionForReport(savedReport, modelReadiness, detectedDisease);
 
     // Save Prediction in SQLite DB
-    if (predictionObj && predictionObj.status === 'SUCCESS') {
+    if (predictionObj && (predictionObj.status === 'SUCCESS' || predictionObj.status === 'UNAVAILABLE')) {
       savePredictionRecord(predictionObj);
     }
 
@@ -163,6 +183,7 @@ router.post('/upload', singleFileUpload, async (req, res) => {
     };
 
     savedReport.modelReadiness = modelReadiness;
+    savedReport.disease = detectedDisease;
 
     return res.status(201).json({
       success: true,
@@ -278,8 +299,17 @@ router.get('/:id/prediction', async (req, res) => {
     const readiness = computeDiseaseModelReadiness(report, requestedDisease);
     let pred = getPredictionRecord(req.params.id);
 
-    // If report is READY and no prediction is saved, automatically generate & persist it
-    if (!pred && readiness.status === 'READY') {
+    const predDisease = (pred && (pred.disease || (pred.modelInfo && pred.modelInfo.disease))) ? (pred.disease || pred.modelInfo.disease).toLowerCase() : '';
+    const mName = (pred && pred.modelName ? pred.modelName : '').toLowerCase();
+
+    const diseaseMismatch = Boolean(pred && (
+      (predDisease && predDisease !== requestedDisease) ||
+      (!predDisease && requestedDisease !== 'diabetes' && mName.includes('diabetes')) ||
+      (requestedDisease === 'diabetes' && !mName.includes('diabetes'))
+    ));
+
+    // If report is READY and (no prediction is saved OR disease mismatch), automatically generate & persist it
+    if ((!pred || diseaseMismatch) && readiness.status === 'READY') {
       try {
         const autoPred = await generatePredictionForReport(report, readiness, requestedDisease);
         if (autoPred && (autoPred.status === 'SUCCESS' || autoPred.status === 'UNAVAILABLE')) {
@@ -289,6 +319,9 @@ router.get('/:id/prediction', async (req, res) => {
       } catch (autoErr) {
         console.warn('[ReportsRoute] Auto-prediction generation failed on GET:', autoErr.message);
       }
+    } else if (diseaseMismatch) {
+      // Stored prediction belongs to a different disease and current disease is not ready
+      pred = null;
     }
 
     // Case D: Report exists and valid prediction persisted
@@ -296,12 +329,39 @@ router.get('/:id/prediction', async (req, res) => {
       const isPositive = pred.predictedClass && (pred.predictedClass.includes('Positive') || pred.predictedClass.includes('Elevated') || (typeof pred.probability === 'number' && pred.probability >= 0.5));
       const displayPct = typeof pred.probability === 'number' && pred.probability <= 1 ? Math.round(pred.probability * 1000) / 10 : (pred.probability || 0);
 
+      let defDisease = 'Type 2 Diabetes Mellitus';
+      let defNegative = 'Low Risk / Negative for Diabetes';
+      let defPosIcd = 'E11.9';
+      let defNegIcd = 'Z13.1';
+
+      if (requestedDisease === 'chikungunya') {
+        defDisease = 'Chikungunya Virus Disease';
+        defNegative = 'Chikungunya Negative / Febrile Control';
+        defPosIcd = 'A92.0';
+        defNegIcd = 'Z03.8';
+      } else if (requestedDisease === 'dengue') {
+        defDisease = 'Dengue Fever / Acute Flavivirus Infection';
+        defNegative = 'Dengue Negative / Other Febrile Illness';
+        defPosIcd = 'A90';
+        defNegIcd = 'Z03.8';
+      } else if (requestedDisease === 'malaria') {
+        defDisease = 'Malaria (Plasmodium Infection)';
+        defNegative = 'Malaria Negative';
+        defPosIcd = 'B54';
+        defNegIcd = 'Z03.8';
+      } else if (requestedDisease === 'typhoid') {
+        defDisease = 'Typhoid (Enteric Fever - S. Typhi)';
+        defNegative = 'Typhoid Negative';
+        defPosIcd = 'A01.0';
+        defNegIcd = 'Z03.8';
+      }
+
       const topPrediction = pred.topPrediction || {
-        disease: isPositive ? 'Type 2 Diabetes Mellitus' : 'Low Risk / Negative for Diabetes',
+        disease: isPositive ? defDisease : defNegative,
         probability: displayPct,
         severity: isPositive ? 'high' : 'low',
-        icd10: isPositive ? 'E11.9' : 'Z13.1',
-        reasoning: pred.clinicalInterpretation || (isPositive ? 'Elevated probability based on clinical laboratory indicators.' : 'Laboratory parameters indicate low risk for Type 2 Diabetes.'),
+        icd10: isPositive ? defPosIcd : defNegIcd,
+        reasoning: pred.clinicalInterpretation || (isPositive ? `Elevated probability based on clinical indicators for ${defDisease}.` : `Laboratory parameters indicate low risk for ${defDisease}.`),
         supportingFeatures: (report.labResults || []).filter(l => l.status === 'HIGH' || l.status === 'ABNORMAL').map(l => `${l.testName}: ${l.value} ${l.units || ''}`)
       };
 
@@ -346,7 +406,9 @@ router.get('/:id/prediction', async (req, res) => {
         modelReadiness: readiness,
         missingFeatures: readiness.missingFeatures,
         symptomDifferentials,
-        message: `Required Pima features (${readiness.missingFeatures.join(', ')}) are missing from report. Pima diabetes ML classifier is inactive.`
+        message: requestedDisease === 'diabetes'
+          ? `Required Pima features (${readiness.missingFeatures.join(', ')}) are missing from report. Pima diabetes ML classifier is inactive.`
+          : `Required ${requestedDisease.toUpperCase()} features (${(readiness.missingFeatures || []).join(', ')}) are missing from report. ${requestedDisease.toUpperCase()} classifier is inactive.`
       });
     }
 
@@ -542,19 +604,23 @@ router.get('/:id/xai', (req, res) => {
     const requestedDisease = (req.query?.disease || (pred && pred.disease) || report.disease || '').toLowerCase().trim();
 
     const isChikungunya = requestedDisease === 'chikungunya' ||
+      (report.filename && /chikungunya/i.test(report.filename)) ||
       (report.labResults || []).some(l => /chikungunya/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /joint|arthralgia|chikungunya/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms)) ||
       (pred && pred.topPrediction && /chikungunya/i.test(pred.topPrediction.disease || ''));
 
     const isDengue = requestedDisease === 'dengue' ||
+      (report.filename && /dengue/i.test(report.filename)) ||
       (report.labResults || []).some(l => /dengue|ns1/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /dengue|retro-orbital|breakbone/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms));
 
     const isMalaria = requestedDisease === 'malaria' ||
+      (report.filename && /malaria/i.test(report.filename)) ||
       (report.labResults || []).some(l => /malaria|plasmodium/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /malaria|chills|rigor/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms));
 
     const isTyphoid = requestedDisease === 'typhoid' ||
+      (report.filename && /typhoid/i.test(report.filename)) ||
       (report.labResults || []).some(l => /typhoid|widal|salmonella/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /typhoid|enteric|step-ladder/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms));
 

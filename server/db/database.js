@@ -539,6 +539,8 @@ function savePredictionRecord(pred) {
     INSERT INTO predictions (id, report_id, model_name, model_version, predicted_class, probability, differentials, model_info, shap_contributions, evidence, risk, uncertainty, created_at)
     VALUES (@id, @report_id, @model_name, @model_version, @predicted_class, @probability, @differentials, @model_info, @shap_contributions, @evidence, @risk, @uncertainty, datetime('now'))
     ON CONFLICT(report_id) DO UPDATE SET
+      model_name = excluded.model_name,
+      model_version = excluded.model_version,
       predicted_class = excluded.predicted_class,
       probability = excluded.probability,
       differentials = excluded.differentials,
@@ -549,6 +551,15 @@ function savePredictionRecord(pred) {
       uncertainty = excluded.uncertainty,
       created_at = datetime('now')
   `);
+
+  const modelInfoPayload = {
+    ...(pred.modelInfo || {}),
+    topPrediction: pred.topPrediction,
+    disease: pred.disease || pred.targetDisease,
+    modelName: pred.modelName,
+    modelVersion: pred.modelVersion
+  };
+
   stmt.run({
     id: pred.id || `PRED-${uuidv4().slice(0, 8)}`,
     report_id: pred.reportId,
@@ -557,7 +568,7 @@ function savePredictionRecord(pred) {
     predicted_class: pred.predictedClass || 'Negative',
     probability: pred.probability || 0.0,
     differentials: JSON.stringify(pred.differentials || []),
-    model_info: JSON.stringify(pred.modelInfo || {}),
+    model_info: JSON.stringify(modelInfoPayload),
     shap_contributions: JSON.stringify(pred.shapContributions || pred.explanation || []),
     evidence: JSON.stringify(pred.evidence || {}),
     risk: JSON.stringify(pred.risk || {}),
@@ -641,6 +652,24 @@ function getReportRecord(reportId) {
     validatedByUser: Boolean(r.validated_by_user)
   }));
 
+  const metaText = [
+    rep.original_filename || '',
+    rep.chief_complaint || '',
+    rep.raw_ocr_text || '',
+    labResults.map(l => `${l.rawName || ''} ${l.testName || ''}`).join(' ')
+  ].join(' ').toLowerCase();
+
+  let detectedDisease = 'diabetes';
+  if (/chikungunya|chikv|polyarthralgia/i.test(metaText)) {
+    detectedDisease = 'chikungunya';
+  } else if (/dengue|ns1|breakbone/i.test(metaText)) {
+    detectedDisease = 'dengue';
+  } else if (/malaria|plasmodium|rigor/i.test(metaText)) {
+    detectedDisease = 'malaria';
+  } else if (/typhoid|widal|salmonella|enteric/i.test(metaText)) {
+    detectedDisease = 'typhoid';
+  }
+
   return {
     id: rep.id,
     patientId: rep.patient_id,
@@ -660,6 +689,7 @@ function getReportRecord(reportId) {
     symptoms: rep.symptoms ? rep.symptoms.split(',').map(s => s.trim()) : [],
     history: rep.history,
     status: rep.status,
+    disease: detectedDisease,
     uploadDate: rep.created_at,
     labResults
   };
@@ -674,27 +704,59 @@ function getPredictionRecord(reportId) {
   const isPositive = p.predicted_class && (p.predicted_class.includes('Positive') || p.predicted_class.includes('Elevated') || (typeof p.probability === 'number' && p.probability >= 0.5));
   const displayPct = typeof p.probability === 'number' && p.probability <= 1 ? Math.round(p.probability * 1000) / 10 : (p.probability || 0);
 
-  const topPrediction = {
-    disease: isPositive ? 'Type 2 Diabetes Mellitus' : 'Low Risk / Negative for Diabetes',
+  const parsedModelInfo = JSON.parse(p.model_info || '{}');
+  const mName = (p.model_name || parsedModelInfo.modelName || '').toLowerCase();
+  const storedDisease = (parsedModelInfo.disease || '').toLowerCase();
+
+  let diseaseName = 'Type 2 Diabetes Mellitus';
+  let negativeName = 'Low Risk / Negative for Diabetes';
+  let posIcd = 'E11.9';
+  let negIcd = 'Z13.1';
+
+  if (mName.includes('chikungunya') || storedDisease === 'chikungunya') {
+    diseaseName = 'Chikungunya Virus Disease';
+    negativeName = 'Chikungunya Negative / Febrile Control';
+    posIcd = 'A92.0';
+    negIcd = 'Z03.8';
+  } else if (mName.includes('dengue') || storedDisease === 'dengue') {
+    diseaseName = 'Dengue Fever / Acute Flavivirus Infection';
+    negativeName = 'Dengue Negative / Other Febrile Illness';
+    posIcd = 'A90';
+    negIcd = 'Z03.8';
+  } else if (mName.includes('malaria') || storedDisease === 'malaria') {
+    diseaseName = 'Malaria (Plasmodium Infection)';
+    negativeName = 'Malaria Negative';
+    posIcd = 'B54';
+    negIcd = 'Z03.8';
+  } else if (mName.includes('typhoid') || storedDisease === 'typhoid') {
+    diseaseName = 'Typhoid (Enteric Fever - S. Typhi)';
+    negativeName = 'Typhoid Negative';
+    posIcd = 'A01.0';
+    negIcd = 'Z03.8';
+  }
+
+  const topPrediction = parsedModelInfo.topPrediction || {
+    disease: isPositive ? diseaseName : negativeName,
     probability: displayPct,
     severity: isPositive ? 'high' : 'low',
-    icd10: isPositive ? 'E11.9' : 'Z13.1',
-    reasoning: isPositive ? 'Elevated probability based on clinical laboratory indicators.' : 'Laboratory parameters indicate low risk for Type 2 Diabetes.',
+    icd10: isPositive ? posIcd : negIcd,
+    reasoning: isPositive ? `Elevated probability for ${diseaseName}.` : `Laboratory parameters indicate low risk for ${diseaseName}.`,
     supportingFeatures: []
   };
 
   const differentials = diffs.length > 0 ? diffs : [
     {
-      disease: isPositive ? 'Pre-diabetes / Impaired Fasting Glucose' : 'Type 2 Diabetes Mellitus',
+      disease: isPositive ? `Subclinical / Impaired Presentation (${diseaseName})` : diseaseName,
       probability: isPositive ? Math.max(0, Math.round((100 - displayPct) * 10) / 10) : displayPct,
       severity: 'moderate',
-      icd10: isPositive ? 'R73.01' : 'E11.9'
+      icd10: isPositive ? 'R69' : posIcd
     }
   ];
 
   return {
     id: p.id,
     reportId: p.report_id,
+    disease: storedDisease || (mName.includes('chikungunya') ? 'chikungunya' : mName.includes('dengue') ? 'dengue' : mName.includes('malaria') ? 'malaria' : mName.includes('typhoid') ? 'typhoid' : 'diabetes'),
     modelName: p.model_name,
     modelVersion: p.model_version,
     predictedClass: p.predicted_class,
@@ -702,7 +764,7 @@ function getPredictionRecord(reportId) {
     displayProbabilityPct: displayPct,
     topPrediction,
     differentials,
-    modelInfo: JSON.parse(p.model_info || '{}'),
+    modelInfo: parsedModelInfo,
     shapContributions: JSON.parse(p.shap_contributions || '[]'),
     evidence: JSON.parse(p.evidence || '{}'),
     risk: JSON.parse(p.risk || '{}'),
@@ -728,6 +790,25 @@ function getAllReportRecords() {
       quality: r.quality || 'VALID',
       confidence: r.confidence
     }));
+
+    const metaText = [
+      rep.original_filename || '',
+      rep.chief_complaint || '',
+      rep.raw_ocr_text || '',
+      labResults.map(l => `${l.rawName || ''} ${l.testName || ''}`).join(' ')
+    ].join(' ').toLowerCase();
+
+    let repDisease = 'diabetes';
+    if (/chikungunya|chikv|polyarthralgia/i.test(metaText)) {
+      repDisease = 'chikungunya';
+    } else if (/dengue|ns1|breakbone/i.test(metaText)) {
+      repDisease = 'dengue';
+    } else if (/malaria|plasmodium|rigor/i.test(metaText)) {
+      repDisease = 'malaria';
+    } else if (/typhoid|widal|salmonella|enteric/i.test(metaText)) {
+      repDisease = 'typhoid';
+    }
+
     return {
       id: rep.id,
       patientId: rep.patient_id,
@@ -735,6 +816,7 @@ function getAllReportRecords() {
       filename: rep.original_filename,
       storedFilename: rep.stored_filename,
       fileType: rep.file_type,
+      disease: repDisease,
       uploadDate: rep.created_at,
       status: rep.status,
       ocrConfidence: rep.ocr_confidence,
