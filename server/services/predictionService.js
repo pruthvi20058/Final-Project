@@ -131,22 +131,34 @@ function runPythonInference(featureData) {
       }
     };
 
+    const isNonDiabetes = featureData && featureData.disease && featureData.disease !== 'diabetes';
+    const safeFallback = (errMsg) => {
+      if (isNonDiabetes) {
+        return safeResolve({
+          status: 'ERROR',
+          disease: featureData.disease,
+          message: `Prediction for ${featureData.disease} failed: ${errMsg}`
+        });
+      }
+      return safeResolve(computeAuthoritativePimaPrediction(featureData));
+    };
+
     let child = null;
     try {
       child = spawn(pythonCmd, [scriptPath, inputJson], {
         cwd: path.join(__dirname, '..', '..')
       });
     } catch (spawnErr) {
-      console.warn('[PredictionEngine] Python spawn failed, using authoritative JS ML fallback:', spawnErr.message);
-      return safeResolve(computeAuthoritativePimaPrediction(featureData));
+      console.warn('[PredictionEngine] Python spawn failed:', spawnErr.message);
+      return safeFallback(spawnErr.message);
     }
 
-    // Safety timeout: 7000ms max before gracefully falling back to JS ML
+    // Safety timeout: 7000ms max before gracefully falling back
     const timeout = setTimeout(() => {
       if (!resolved) {
-        console.warn('[PredictionEngine] Python ML execution timed out, using authoritative JS ML fallback');
+        console.warn('[PredictionEngine] Python ML execution timed out');
         try { child.kill(); } catch {}
-        safeResolve(computeAuthoritativePimaPrediction(featureData));
+        safeFallback('Execution timed out');
       }
     }, 7000);
 
@@ -163,77 +175,103 @@ function runPythonInference(featureData) {
 
     child.on('error', (err) => {
       clearTimeout(timeout);
-      console.warn('[PredictionEngine] Python process error, using authoritative JS ML fallback:', err.message);
-      safeResolve(computeAuthoritativePimaPrediction(featureData));
+      console.warn('[PredictionEngine] Python process error:', err.message);
+      safeFallback(err.message);
     });
 
     child.on('close', (code) => {
       clearTimeout(timeout);
       if (code !== 0 || !stdoutData.trim()) {
-        console.warn(`[PredictionEngine] Python exited code ${code}, falling back to authoritative JS ML:`, stderrData);
-        return safeResolve(computeAuthoritativePimaPrediction(featureData));
+        console.warn(`[PredictionEngine] Python exited code ${code}:`, stderrData);
+        return safeFallback(stderrData || `Exit code ${code}`);
       }
       try {
         const parsed = JSON.parse(stdoutData.trim());
         if (parsed.status === 'ERROR') {
-          return safeResolve(computeAuthoritativePimaPrediction(featureData));
+          return safeFallback(parsed.message || 'ML Error');
         }
         safeResolve(parsed);
       } catch (err) {
-        console.warn('[PredictionEngine] Python JSON parse error, falling back to authoritative JS ML:', err.message);
-        safeResolve(computeAuthoritativePimaPrediction(featureData));
+        console.warn('[PredictionEngine] Python JSON parse error:', err.message);
+        safeFallback(err.message);
       }
     });
   });
 }
 
-async function generatePredictionForReport(report, precomputedReadiness = null) {
-  const readiness = precomputedReadiness || computeModelReadiness(report);
+async function generatePredictionForReport(report, precomputedReadiness = null, requestedDisease = null) {
+  // Determine target disease
+  let targetDisease = (requestedDisease || report.targetDisease || report.disease || '').toLowerCase().trim();
+  if (!targetDisease) {
+    const text = [
+      (report.labResults || []).map(l => l.rawName || l.testName || '').join(' '),
+      Array.isArray(report.symptoms) ? report.symptoms.join(' ') : (report.symptoms || ''),
+      report.chiefComplaint || '',
+      report.chief_complaint || ''
+    ].join(' ').toLowerCase();
 
-  // Safeguard: Block inference if required Pima features are missing (Requirement 2 & 8)
-  if (readiness.status === 'INSUFFICIENT_DATA') {
-    return {
-      id: `PRED-${report.id}`,
-      reportId: report.id,
-      status: 'INSUFFICIENT_DATA',
-      modelName: 'v2.0.0-pima-diabetes',
-      modelVersion: 'v2.0.0-pima-diabetes',
-      predictedClass: 'Insufficient Data for Screening',
-      probability: 0.0,
-      missingFeatures: readiness.missingFeatures,
-      modelReadiness: readiness,
-      message: `Required Pima screening measurements (${readiness.missingFeatures.join(', ')}) are missing from report.`,
-      clinicalNote: 'Required clinical measurements are missing. Cannot perform ML screening.',
-      disclaimer: 'AI-assisted clinical decision support screening tool. Not a confirmed diagnosis.',
-      createdAt: new Date().toISOString()
-    };
+    if (/chikungunya|arthralgia|polyarthralgia/i.test(text)) targetDisease = 'chikungunya';
+    else if (/dengue|ns1|breakbone/i.test(text)) targetDisease = 'dengue';
+    else if (/malaria|plasmodium|rigor|blackwater/i.test(text)) targetDisease = 'malaria';
+    else if (/typhoid|widal|salmonella|enteric/i.test(text)) targetDisease = 'typhoid';
+    else targetDisease = 'diabetes';
   }
 
-  // Safeguard: Block inference if features are clinically invalid
-  if (readiness.status === 'INVALID_DATA') {
-    const invalidList = readiness.mappingDiagnostics.filter(d => d.status === 'INVALID');
-    return {
-      id: `PRED-${report.id}`,
-      reportId: report.id,
-      status: 'INVALID_DATA',
-      modelName: 'v2.0.0-pima-diabetes',
-      modelVersion: 'v2.0.0-pima-diabetes',
-      predictedClass: 'Invalid Clinical Data',
-      probability: 0.0,
-      invalidFeatures: invalidList,
-      modelReadiness: readiness,
-      message: invalidList.length > 0 ? invalidList[0].reason : 'Report contains invalid clinical measurements.',
-      disclaimer: 'AI-assisted clinical decision support screening tool. Not a confirmed diagnosis.',
-      createdAt: new Date().toISOString()
-    };
+  const { computeDiseaseModelReadiness } = require('./diseaseFeatureMapper');
+  const readiness = precomputedReadiness || computeDiseaseModelReadiness(report, targetDisease);
+
+  // Safeguard: For Diabetes, enforce strict Pima 8-feature gating
+  if (targetDisease === 'diabetes') {
+    if (readiness.status === 'INSUFFICIENT_DATA') {
+      return {
+        id: `PRED-${report.id}`,
+        reportId: report.id,
+        disease: 'diabetes',
+        status: 'INSUFFICIENT_DATA',
+        modelName: 'v2.0.0-pima-diabetes',
+        modelVersion: 'v2.0.0-pima-diabetes',
+        predictedClass: 'Insufficient Data for Screening',
+        probability: 0.0,
+        missingFeatures: readiness.missingFeatures,
+        modelReadiness: readiness,
+        message: `Required Pima screening measurements (${readiness.missingFeatures.join(', ')}) are missing from report.`,
+        clinicalNote: 'Required clinical measurements are missing. Cannot perform ML screening.',
+        disclaimer: 'AI-assisted clinical decision support screening tool. Not a confirmed diagnosis.',
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    if (readiness.status === 'INVALID_DATA') {
+      const invalidList = readiness.mappingDiagnostics.filter(d => d.status === 'INVALID');
+      return {
+        id: `PRED-${report.id}`,
+        reportId: report.id,
+        disease: 'diabetes',
+        status: 'INVALID_DATA',
+        modelName: 'v2.0.0-pima-diabetes',
+        modelVersion: 'v2.0.0-pima-diabetes',
+        predictedClass: 'Invalid Clinical Data',
+        probability: 0.0,
+        invalidFeatures: invalidList,
+        modelReadiness: readiness,
+        message: invalidList.length > 0 ? invalidList[0].reason : 'Report contains invalid clinical measurements.',
+        disclaimer: 'AI-assisted clinical decision support screening tool. Not a confirmed diagnosis.',
+        createdAt: new Date().toISOString()
+      };
+    }
   }
 
-  // Execute Scikit-Learn Model Inference ONLY when all 8 features are safely validated
+  // Execute inference with disease parameter
+  const featurePayload = {
+    disease: targetDisease,
+    ...readiness.featureValues
+  };
+
   let mlResult;
   try {
-    mlResult = await runPythonInference(readiness.featureValues);
+    mlResult = await runPythonInference(featurePayload);
   } catch (err) {
-    console.error('[PredictionService] Python ML execution failed:', err.message);
+    console.error(`[PredictionService] Python ML execution failed for ${targetDisease}:`, err.message);
     throw err;
   }
 

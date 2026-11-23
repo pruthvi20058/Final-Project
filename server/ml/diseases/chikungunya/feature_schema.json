@@ -1,0 +1,169 @@
+{
+  "model_id": "chikungunya_random_forest",
+  "model_version": "v1.0.0-chikungunya-sinan",
+  "task": "binary_classification",
+  "target": {
+    "name": "target",
+    "classes": {
+      "0": "Discarded / Febrile Negative Control",
+      "1": "Chikungunya Confirmed"
+    }
+  },
+  "canonical_features": [
+    {
+      "name": "fever",
+      "clinical_label": "High Fever",
+      "report_synonyms": [
+        "fever",
+        "high_fever"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "myalgia",
+      "clinical_label": "Myalgia",
+      "report_synonyms": [
+        "myalgia",
+        "muscle_pain"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "headache",
+      "clinical_label": "Headache",
+      "report_synonyms": [
+        "headache",
+        "cephalea"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "rash",
+      "clinical_label": "Maculopapular Rash",
+      "report_synonyms": [
+        "rash",
+        "skin_rash"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "vomiting",
+      "clinical_label": "Vomiting",
+      "report_synonyms": [
+        "vomiting",
+        "vomitting"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "nausea",
+      "clinical_label": "Nausea",
+      "report_synonyms": [
+        "nausea"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "back_pain",
+      "clinical_label": "Lumbar / Back Pain",
+      "report_synonyms": [
+        "back_pain",
+        "low_back_pain"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "conjunctivitis",
+      "clinical_label": "Conjunctivitis / Red Eyes",
+      "report_synonyms": [
+        "conjunctivitis",
+        "red_eyes"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "arthritis",
+      "clinical_label": "Objective Joint Swelling / Arthritis",
+      "report_synonyms": [
+        "arthritis",
+        "joint_swelling"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "arthralgia",
+      "clinical_label": "Severe Bilateral Arthralgia",
+      "report_synonyms": [
+        "arthralgia",
+        "joint_pain"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "petechiae",
+      "clinical_label": "Petechiae / Purpura",
+      "report_synonyms": [
+        "petechiae",
+        "skin_hemorrhages"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "leukopenia",
+      "clinical_label": "Leukopenia (WBC < 4000)",
+      "report_synonyms": [
+        "leukopenia",
+        "low_wbc"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

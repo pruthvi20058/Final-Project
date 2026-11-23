@@ -1,0 +1,243 @@
+{
+  "model_id": "malaria_logistic_regression",
+  "model_version": "v1.0.0-malaria-severity",
+  "task": "binary_classification",
+  "target": {
+    "name": "severe_maleria",
+    "classes": {
+      "0": "Mild / Uncomplicated Malaria",
+      "1": "Severe / Complicated Malaria"
+    }
+  },
+  "canonical_features": [
+    {
+      "name": "age",
+      "clinical_label": "Patient Age",
+      "report_synonyms": [
+        "age"
+      ],
+      "unit": "years",
+      "numeric_type": "float",
+      "valid_range": {
+        "min": 1,
+        "max": 110
+      }
+    },
+    {
+      "name": "sex",
+      "clinical_label": "Biological Sex",
+      "report_synonyms": [
+        "sex",
+        "gender"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "fever",
+      "clinical_label": "Fever Present",
+      "report_synonyms": [
+        "fever",
+        "febrile"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "cold",
+      "clinical_label": "Chills / Cold Feeling",
+      "report_synonyms": [
+        "cold",
+        "chills"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "rigor",
+      "clinical_label": "Rigors / Shivering Paroxysm",
+      "report_synonyms": [
+        "rigor",
+        "rigors"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "fatigue",
+      "clinical_label": "Fatigue / Malaise",
+      "report_synonyms": [
+        "fatigue",
+        "tiredness",
+        "weakness"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "headace",
+      "clinical_label": "Headache",
+      "report_synonyms": [
+        "headace",
+        "headache",
+        "cephalalgia"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "bitter_tongue",
+      "clinical_label": "Bitter Taste in Mouth",
+      "report_synonyms": [
+        "bitter_tongue",
+        "dysgeusia"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "vomitting",
+      "clinical_label": "Vomiting",
+      "report_synonyms": [
+        "vomitting",
+        "vomiting",
+        "emesis"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "diarrhea",
+      "clinical_label": "Diarrhea",
+      "report_synonyms": [
+        "diarrhea",
+        "loose_stools"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "Convulsion",
+      "clinical_label": "Convulsions / Seizure Signs",
+      "report_synonyms": [
+        "convulsion",
+        "seizures",
+        "fits"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "Anemia",
+      "clinical_label": "Severe Pallor / Anemia",
+      "report_synonyms": [
+        "anemia",
+        "pallor",
+        "low_hemoglobin"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "jundice",
+      "clinical_label": "Jaundice / Scleral Icterus",
+      "report_synonyms": [
+        "jundice",
+        "jaundice",
+        "icterus"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "cocacola_urine",
+      "clinical_label": "Dark / Hemoglobinuria Urine",
+      "report_synonyms": [
+        "cocacola_urine",
+        "dark_urine",
+        "blackwater_fever"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "hypoglycemia",
+      "clinical_label": "Hypoglycemia (<40 mg/dL)",
+      "report_synonyms": [
+        "hypoglycemia",
+        "low_blood_sugar"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "prostraction",
+      "clinical_label": "Prostration / Extreme Weakness",
+      "report_synonyms": [
+        "prostraction",
+        "prostration",
+        "inability_to_stand"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "name": "hyperpyrexia",
+      "clinical_label": "Hyperpyrexia (>40\u00b0C)",
+      "report_synonyms": [
+        "hyperpyrexia",
+        "high_fever"
+      ],
+      "numeric_type": "integer",
+      "valid_range": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

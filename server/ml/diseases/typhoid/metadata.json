@@ -1,0 +1,56 @@
+{
+  "model_name": "MediAgent Typhoid Classifier",
+  "model_version": "v1.0.0-typhoid-clinical",
+  "algorithm": "GradientBoostingClassifier + StandardScaler",
+  "feature_count": 14,
+  "features": [
+    "fever_duration",
+    "body_temperature",
+    "headache",
+    "abdominal_pain",
+    "weakness",
+    "diarrhea",
+    "constipation",
+    "widal_to",
+    "widal_th",
+    "blood_culture",
+    "wbc_count",
+    "platelet_count",
+    "hepatomegaly",
+    "splenomegaly"
+  ],
+  "target_column": "typhoid_diagnosis",
+  "classes": [
+    "0",
+    "1"
+  ],
+  "class_labels": {
+    "0": "Typhoid Negative / Non-Enteric Febrile Illness",
+    "1": "Typhoid Enteric Fever Confirmed"
+  },
+  "sample_size": 600,
+  "selected_model_test_metrics": {
+    "is_multiclass": false,
+    "accuracy": 0.9833,
+    "precision": 0.9649,
+    "recall_sensitivity": 1.0,
+    "specificity": 0.9692,
+    "f1_score": 0.9821,
+    "roc_auc": 0.9923,
+    "brier_score": 0.0142,
+    "confusion_matrix": {
+      "tn": 63,
+      "fp": 2,
+      "fn": 0,
+      "tp": 55
+    },
+    "classes": [
+      "0",
+      "1"
+    ],
+    "class_labels": {
+      "0": "Typhoid Negative / Non-Enteric Febrile Illness",
+      "1": "Typhoid Enteric Fever Confirmed"
+    }
+  }
+}

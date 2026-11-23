@@ -423,17 +423,23 @@ def main():
     disease = str(data.get("disease", "diabetes")).lower().strip()
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Typhoid Strict Anti-Fabrication Guardrail
+    # Typhoid Handler (Uses trained model or returns UNAVAILABLE)
     if disease == "typhoid":
-        res = {
-            "status": "UNAVAILABLE",
-            "disease": "typhoid",
-            "modelName": "MediAgent Typhoid Classifier (Guarded)",
-            "modelVersion": "N/A - Offline",
-            "message": "Typhoid machine learning prediction is currently unavailable. No non-synthetic, clinically validated public dataset could be authenticated. In strict adherence to medical safety protocols, synthetic or simulated records are not used.",
-            "datasetProvenance": "TyphoDx-BD (Mendeley 10.17632/m9pnvv2vpv.1) identified but restricted by data repository authentication.",
-            "disclaimer": "Diagnostic ML prediction is guarded until authenticated clinical trial data is provided."
-        }
+        typhoid_model_p = os.path.join(script_dir, "models", "typhoid", "model.joblib")
+        if os.path.exists(typhoid_model_p):
+            sys.path.insert(0, os.path.join(script_dir, "common"))
+            from prediction_interface import predict_disease_case
+            res = predict_disease_case("typhoid", data)
+        else:
+            res = {
+                "status": "UNAVAILABLE",
+                "disease": "typhoid",
+                "modelName": "MediAgent Typhoid Classifier (Guarded)",
+                "modelVersion": "N/A - Offline",
+                "message": "Typhoid machine learning prediction is currently unavailable. No non-synthetic, clinically validated dataset has been trained yet. Please upload a dataset in the Dataset Studio to train this module.",
+                "datasetProvenance": "TyphoDx-BD (Mendeley 10.17632/m9pnvv2vpv.1) / Custom Upload",
+                "disclaimer": "Diagnostic ML prediction is guarded until authenticated clinical trial data is provided."
+            }
         print(json.dumps(res))
         sys.exit(0)
 

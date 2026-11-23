@@ -26,6 +26,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggle, docto
   ];
 
   const researchNav = [
+    { id: 'dataset-studio', icon: '🧪', label: 'Dataset & Training Studio', badge: '5 DISEASES' },
     { id: 'evaluation', icon: '🏆', label: 'Evaluation Benchmarks' },
     { id: 'models', icon: '⚙️', label: 'Model Registry' },
     { id: 'knowledge', icon: '🌐', label: 'Knowledge Base' },

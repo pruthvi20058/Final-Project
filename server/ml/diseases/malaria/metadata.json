@@ -1,0 +1,101 @@
+{
+  "model_name": "MediAgent Malaria Severity Classifier (Logistic Regression)",
+  "model_version": "v1.0.0-malaria-severity",
+  "algorithm": "Logistic Regression",
+  "dataset_provenance": {
+    "name": "Clinical Malaria Severity Dataset",
+    "source": "Clinical Malaria Study / abiolalawal14",
+    "records_total": 337,
+    "train_samples": 269,
+    "test_samples": 68,
+    "synthetic_data_used": false
+  },
+  "leakage_audit": {
+    "duplicate_rows_detected": 0,
+    "scaler_fitted_on_train_only": true,
+    "stratified_split": true,
+    "random_seed": 42
+  },
+  "selected_model_test_metrics": {
+    "accuracy": 0.6176,
+    "precision": 0.4516,
+    "recall_sensitivity": 0.6087,
+    "specificity": 0.6222,
+    "f1_score": 0.5185,
+    "roc_auc": 0.6879,
+    "brier_score": 0.2237,
+    "confusion_matrix": {
+      "tn": 28,
+      "fp": 17,
+      "fn": 9,
+      "tp": 14
+    },
+    "cv_metrics": {
+      "cv_accuracy_mean": 0.5129,
+      "cv_f1_mean": 0.388,
+      "cv_roc_auc_mean": 0.472
+    }
+  },
+  "all_model_comparisons": {
+    "Random Forest": {
+      "accuracy": 0.6324,
+      "precision": 0.4444,
+      "recall_sensitivity": 0.3478,
+      "specificity": 0.7778,
+      "f1_score": 0.3902,
+      "roc_auc": 0.6126,
+      "brier_score": 0.2261,
+      "confusion_matrix": {
+        "tn": 35,
+        "fp": 10,
+        "fn": 15,
+        "tp": 8
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.5762,
+        "cv_f1_mean": 0.312,
+        "cv_roc_auc_mean": 0.4938
+      }
+    },
+    "Gradient Boosting": {
+      "accuracy": 0.6176,
+      "precision": 0.4286,
+      "recall_sensitivity": 0.3913,
+      "specificity": 0.7333,
+      "f1_score": 0.4091,
+      "roc_auc": 0.6261,
+      "brier_score": 0.2321,
+      "confusion_matrix": {
+        "tn": 33,
+        "fp": 12,
+        "fn": 14,
+        "tp": 9
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.5613,
+        "cv_f1_mean": 0.2526,
+        "cv_roc_auc_mean": 0.4811
+      }
+    },
+    "Logistic Regression": {
+      "accuracy": 0.6176,
+      "precision": 0.4516,
+      "recall_sensitivity": 0.6087,
+      "specificity": 0.6222,
+      "f1_score": 0.5185,
+      "roc_auc": 0.6879,
+      "brier_score": 0.2237,
+      "confusion_matrix": {
+        "tn": 28,
+        "fp": 17,
+        "fn": 9,
+        "tp": 14
+      },
+      "cv_metrics": {
+        "cv_accuracy_mean": 0.5129,
+        "cv_f1_mean": 0.388,
+        "cv_roc_auc_mean": 0.472
+      }
+    }
+  }
+}

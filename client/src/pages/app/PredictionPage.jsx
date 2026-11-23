@@ -4,7 +4,16 @@ import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import ProbabilityBar from '../../components/ProbabilityBar';
 import { predictionService, reportService, FALLBACK_PREDICTION, FALLBACK_REPORT } from '../../services/api';
 
+const DISEASES = [
+  { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
+  { id: 'chikungunya', label: 'Chikungunya', icon: '🦴' },
+  { id: 'dengue', label: 'Dengue Fever', icon: '🩸' },
+  { id: 'malaria', label: 'Malaria', icon: '🦟' },
+  { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
+];
+
 export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
+  const [selectedDisease, setSelectedDisease] = useState('diabetes');
   const [loading, setLoading] = useState(false);
   const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'SUCCESS' | 'ERROR'
   const [pred, setPred] = useState(FALLBACK_PREDICTION);
@@ -14,9 +23,10 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       let rep = null;
       try {
-        rep = await reportService.getById(reportId || 'REP-9001');
+        rep = await reportService.getById(reportId || 'REP-9001', selectedDisease);
       } catch (repErr) {
         rep = FALLBACK_REPORT;
       }
@@ -25,24 +35,18 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
       const repReadiness = (rep && rep.modelReadiness) || FALLBACK_REPORT.modelReadiness;
       setReadiness(repReadiness);
 
-      // Step 2: Query prediction endpoint for this verified report
+      // Step 2: Query prediction endpoint for this verified report and disease
       let predRes = null;
       try {
-        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001');
+        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', selectedDisease);
       } catch {
         predRes = FALLBACK_PREDICTION;
       }
 
-      // If prediction is missing or insufficient but age is present in lab results, trigger active on-demand screening
-      const hasAgeInLabs = (rep?.labResults || []).some(l => {
-        const rn = (l.rawName || l.testName || '').toLowerCase();
-        const nn = (l.normalizedName || '').toLowerCase();
-        return nn === 'age' || nn.startsWith('age') || rn.startsWith('age') || /\bage\b/i.test(rn);
-      }) || (rep?.patientAge !== undefined && rep?.patientAge !== null);
-
-      if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && hasAgeInLabs && rep?.id) {
+      // If prediction is missing or insufficient, trigger active on-demand screening
+      if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && rep?.id) {
         try {
-          const runRes = await predictionService.predict(rep.id);
+          const runRes = await predictionService.predict(rep.id, selectedDisease);
           if (runRes && runRes.status === 'SUCCESS' && runRes.prediction) {
             predRes = runRes.prediction;
             setPred(predRes);
@@ -79,7 +83,7 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
 
   useEffect(() => {
     loadData();
-  }, [reportId]);
+  }, [reportId, selectedDisease]);
 
   // LOADING STATE
   if (loading || pageState === 'LOADING') {
@@ -215,15 +219,41 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         <SafetyDisclaimer compact />
 
         {/* INSUFFICIENT DATA CARD */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          {DISEASES.map(d => {
+            const isSel = selectedDisease === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setSelectedDisease(d.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                  borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
+                  color: isSel ? '#090d16' : '#94a3b8',
+                  border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{d.icon}</span>
+                <span>{d.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="card" style={{ background: 'var(--bg-secondary)', borderLeft: '4px solid #f59e0b', marginBottom: 24, padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ fontSize: '2.2rem' }}>⚠️</div>
             <div style={{ flex: 1 }}>
               <h3 style={{ color: '#f59e0b', fontSize: '1.15rem', marginBottom: 6 }}>
-                Insufficient Data for Disease Prediction
+                Insufficient Data for {selectedDisease.toUpperCase()} Screening
               </h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 14 }}>
-                The Scikit-Learn Diabetes Model requires <strong>all 8 canonical Pima features</strong> to produce an authoritative, mathematically valid screening prediction without synthetic fabrication or heuristic hallucination.
+                {selectedDisease === 'diabetes'
+                  ? 'The Scikit-Learn Diabetes Model requires all 8 canonical Pima features to produce an authoritative, mathematically valid screening prediction without synthetic fabrication or heuristic hallucination.'
+                  : `The ${selectedDisease.toUpperCase()} Model evaluates independent clinical features (${missing.join(', ')}). Never requires diabetes features.`}
               </p>
 
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: '0.84rem', background: 'var(--bg-elevated)', padding: '10px 16px', borderRadius: 6 }}>
@@ -429,6 +459,31 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
       </div>
 
       <SafetyDisclaimer compact />
+
+      {/* DISEASE SELECTOR TABS */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {DISEASES.map(d => {
+          const isSel = selectedDisease === d.id;
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => setSelectedDisease(d.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
+                color: isSel ? '#090d16' : '#94a3b8',
+                border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>{d.icon}</span>
+              <span>{d.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* MODEL METADATA BADGE BAR */}
       <div className="card" style={{ background: 'var(--bg-secondary)', marginBottom: 20, padding: '12px 20px' }}>

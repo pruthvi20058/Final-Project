@@ -1,0 +1,160 @@
+{
+  "disease": "typhoid",
+  "model_version": "v1.0.0-typhoid-clinical",
+  "canonical_features": [
+    {
+      "name": "fever_duration",
+      "clinical_label": "fever duration",
+      "data_type": "float",
+      "unit": "days",
+      "required": false,
+      "report_synonyms": [
+        "fever_duration",
+        "fever duration"
+      ]
+    },
+    {
+      "name": "body_temperature",
+      "clinical_label": "body temperature",
+      "data_type": "float",
+      "unit": "\u00b0C",
+      "required": false,
+      "report_synonyms": [
+        "body_temperature",
+        "body temperature"
+      ]
+    },
+    {
+      "name": "headache",
+      "clinical_label": "headache",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "headache",
+        "headache"
+      ]
+    },
+    {
+      "name": "abdominal_pain",
+      "clinical_label": "abdominal pain",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "abdominal_pain",
+        "abdominal pain"
+      ]
+    },
+    {
+      "name": "weakness",
+      "clinical_label": "weakness",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "weakness",
+        "weakness"
+      ]
+    },
+    {
+      "name": "diarrhea",
+      "clinical_label": "diarrhea",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "diarrhea",
+        "diarrhea"
+      ]
+    },
+    {
+      "name": "constipation",
+      "clinical_label": "constipation",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "constipation",
+        "constipation"
+      ]
+    },
+    {
+      "name": "widal_to",
+      "clinical_label": "widal to",
+      "data_type": "float",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "widal_to",
+        "widal to"
+      ]
+    },
+    {
+      "name": "widal_th",
+      "clinical_label": "widal th",
+      "data_type": "float",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "widal_th",
+        "widal th"
+      ]
+    },
+    {
+      "name": "blood_culture",
+      "clinical_label": "blood culture",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "blood_culture",
+        "blood culture"
+      ]
+    },
+    {
+      "name": "wbc_count",
+      "clinical_label": "wbc count",
+      "data_type": "float",
+      "unit": "cells/mcL",
+      "required": false,
+      "report_synonyms": [
+        "wbc_count",
+        "wbc count"
+      ]
+    },
+    {
+      "name": "platelet_count",
+      "clinical_label": "platelet count",
+      "data_type": "float",
+      "unit": "cells/mcL",
+      "required": false,
+      "report_synonyms": [
+        "platelet_count",
+        "platelet count"
+      ]
+    },
+    {
+      "name": "hepatomegaly",
+      "clinical_label": "hepatomegaly",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "hepatomegaly",
+        "hepatomegaly"
+      ]
+    },
+    {
+      "name": "splenomegaly",
+      "clinical_label": "splenomegaly",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "splenomegaly",
+        "splenomegaly"
+      ]
+    }
+  ]
+}

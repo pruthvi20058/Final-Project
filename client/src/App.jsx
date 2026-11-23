@@ -36,6 +36,7 @@ import FloatingVoiceAssistant from './components/FloatingVoiceAssistant';
 
 import EvaluationDashboard from './pages/admin/EvaluationDashboard';
 import ModelsPage from './pages/admin/ModelsPage';
+import DatasetStudioPage from './pages/admin/DatasetStudioPage';
 import KnowledgeBasePage from './pages/admin/KnowledgeBasePage';
 import SystemStatusPage from './pages/admin/SystemStatusPage';
 
@@ -170,8 +171,9 @@ export default function App() {
       case 'settings': return <SettingsPage />;
 
       // Admin & Research Routes
+      case 'dataset-studio': return <DatasetStudioPage onNavigate={setActivePage} />;
       case 'evaluation': return <EvaluationDashboard />;
-      case 'models': return <ModelsPage />;
+      case 'models': return <ModelsPage onNavigate={setActivePage} />;
       case 'knowledge': return <KnowledgeBasePage />;
       case 'system-status': return <SystemStatusPage />;
 

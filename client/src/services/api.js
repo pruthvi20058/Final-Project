@@ -404,9 +404,10 @@ export const reportService = {
     }
   },
 
-  async getById(id) {
+  async getById(id, disease = null) {
     if (!id) throw new Error('Report ID is required');
-    const data = await request(`/reports/${id}`);
+    const query = disease ? `?disease=${encodeURIComponent(disease)}` : '';
+    const data = await request(`/reports/${id}${query}`);
     if (!data.report) {
       throw new Error(`Report ${id} not found.`);
     }
@@ -417,8 +418,8 @@ export const reportService = {
     };
   },
 
-  async extract(id) {
-    const report = await this.getById(id);
+  async extract(id, disease = null) {
+    const report = await this.getById(id, disease);
     return {
       reportId: report.id,
       labResults: report.labResults,
@@ -428,10 +429,10 @@ export const reportService = {
     };
   },
 
-  async updateLabResults(id, newLabResults) {
+  async updateLabResults(id, newLabResults, disease = 'diabetes') {
     const data = await request(`/reports/${id}/lab-results`, {
       method: 'PUT',
-      body: JSON.stringify({ labResults: newLabResults })
+      body: JSON.stringify({ labResults: newLabResults, disease })
     });
     return {
       success: true,
@@ -451,9 +452,10 @@ export const patientService = {
 };
 
 export const predictionService = {
-  async getPrediction(reportId) {
+  async getPrediction(reportId, disease = 'diabetes') {
     if (!reportId) throw new Error('Report ID is required');
-    const data = await request(`/reports/${reportId}/prediction`);
+    const query = disease ? `?disease=${encodeURIComponent(disease)}` : '';
+    const data = await request(`/reports/${reportId}/prediction${query}`);
     if (data.prediction) {
       return {
         ...data.prediction,
@@ -476,15 +478,19 @@ export const predictionService = {
     };
   },
 
-  async predict(reportId) {
+  async predict(reportId, disease = 'diabetes') {
     if (!reportId) throw new Error('Report ID is required');
-    return await request(`/reports/${reportId}/predict`, { method: 'POST' });
+    return await request(`/reports/${reportId}/predict`, {
+      method: 'POST',
+      body: JSON.stringify({ disease })
+    });
   },
 
-  async getXAI(predictionIdOrReportId) {
+  async getXAI(predictionIdOrReportId, disease = null) {
     const reportId = (predictionIdOrReportId || '').replace('PRED-', '').replace('XAI-', '');
+    const query = disease ? `?disease=${encodeURIComponent(disease)}` : '';
     try {
-      const data = await request(`/reports/${reportId}/xai`);
+      const data = await request(`/reports/${reportId}/xai${query}`);
       return data.xai;
     } catch {
       return {
@@ -688,4 +694,46 @@ export const nlpService = {
     return request(`/nlp/consultations/${id}`);
   }
 };
+
+export const mlService = {
+  async getModels() {
+    return request('/ml/models');
+  },
+  async getModelDetails(disease) {
+    return request(`/ml/models/${disease}`);
+  },
+  async getSampleDatasets() {
+    return request('/ml/datasets/samples');
+  },
+  async inspectDataset(filePath, disease) {
+    return request('/ml/datasets/inspect', {
+      method: 'POST',
+      body: JSON.stringify({ filePath, disease })
+    });
+  },
+  async uploadDataset(formData) {
+    const res = await fetch(`${API_BASE}/ml/datasets/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error?.message || data.message || `Upload failed with status ${res.status}`);
+    }
+    return data;
+  },
+  async trainModel(params) {
+    return request('/ml/train', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+  },
+  async predictDisease(disease, features) {
+    return request(`/ml/predict/${disease}`, {
+      method: 'POST',
+      body: JSON.stringify({ features })
+    });
+  }
+};
+
 

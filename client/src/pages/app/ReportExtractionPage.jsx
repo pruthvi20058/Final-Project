@@ -3,7 +3,16 @@ import DemoBanner from '../../components/DemoBanner';
 import StatusBadge from '../../components/StatusBadge';
 import { reportService, CLINICAL_ONTOLOGY, FALLBACK_REPORT } from '../../services/api';
 
+const DISEASES = [
+  { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
+  { id: 'chikungunya', label: 'Chikungunya', icon: '🦴' },
+  { id: 'dengue', label: 'Dengue Fever', icon: '🩸' },
+  { id: 'malaria', label: 'Malaria', icon: '🦟' },
+  { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
+];
+
 export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate }) {
+  const [selectedDisease, setSelectedDisease] = useState('diabetes');
   const [report, setReport] = useState(FALLBACK_REPORT);
   const [labResults, setLabResults] = useState(FALLBACK_REPORT.labResults);
   const [modelReadiness, setModelReadiness] = useState(FALLBACK_REPORT.modelReadiness);
@@ -19,7 +28,7 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     let mounted = true;
     async function loadReport() {
       try {
-        const data = await reportService.getById(reportId || 'REP-9001');
+        const data = await reportService.getById(reportId || 'REP-9001', selectedDisease);
         if (mounted && data) {
           setReport(data);
           setLabResults(data.labResults || FALLBACK_REPORT.labResults);
@@ -33,7 +42,7 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     }
     loadReport();
     return () => { mounted = false; };
-  }, [reportId]);
+  }, [reportId, selectedDisease]);
 
   if (loadError) {
     return (
@@ -72,7 +81,7 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     );
     setLabResults(updated);
     try {
-      const res = await reportService.updateLabResults(report.id, updated);
+      const res = await reportService.updateLabResults(report.id, updated, selectedDisease);
       if (res && res.modelReadiness) {
         setModelReadiness(res.modelReadiness);
       }
@@ -124,7 +133,7 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     const updated = [...labResults, newItem];
     setLabResults(updated);
     try {
-      const res = await reportService.updateLabResults(report.id, updated);
+      const res = await reportService.updateLabResults(report.id, updated, selectedDisease);
       if (res && res.modelReadiness) {
         setModelReadiness(res.modelReadiness);
       }
@@ -442,21 +451,51 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
             const isReady = effectiveReadiness.status === 'READY';
             const isInvalid = effectiveReadiness.status === 'INVALID_DATA';
 
+            const totalRequired = effectiveReadiness.requiredFeaturesCount ||
+              (effectiveReadiness.mappingDiagnostics ? effectiveReadiness.mappingDiagnostics.length : (selectedDisease === 'diabetes' ? 8 : 6));
+
             return (
               <div className="card table-card-elevated" style={{
                 background: 'var(--bg-secondary)',
                 border: isReady ? '1px solid rgba(0,212,170,0.4)' : isInvalid ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(245,158,11,0.4)',
                 borderRadius: 'var(--radius-lg)', padding: 26
               }}>
+                {/* DISEASE SELECTOR PILLS */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                  {DISEASES.map(d => {
+                    const isSel = selectedDisease === d.id;
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setSelectedDisease(d.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                          borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                          background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
+                          color: isSel ? '#090d16' : '#94a3b8',
+                          border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span>{d.icon}</span>
+                        <span>{d.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: '1.2rem' }}>🩺</span>
                     <div>
                       <h4 style={{ color: '#fff', fontSize: '0.98rem', margin: 0 }}>
-                        Canonical Clinical Feature Mapping & Screening Readiness
+                        {selectedDisease.toUpperCase()} Screening Readiness & Feature Mapping
                       </h4>
                       <p style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)', margin: '3px 0 0 0' }}>
-                        Pima Indian Diabetes Model requires 8 numerical canonical screening features.
+                        {selectedDisease === 'diabetes'
+                          ? 'Pima Indian Diabetes Model requires 8 numerical canonical screening features.'
+                          : `${selectedDisease.toUpperCase()} module evaluates independent disease features.`}
                       </p>
                     </div>
                   </div>
@@ -474,11 +513,11 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 16 }}>
                   <div style={{ background: '#090d16', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border-color)', textAlign: 'center' }}>
                     <div style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase' }}>Required Features</div>
-                    <strong style={{ color: '#fff', fontSize: '1.15rem' }}>8 Canonical</strong>
+                    <strong style={{ color: '#fff', fontSize: '1.15rem' }}>{totalRequired} Canonical</strong>
                   </div>
                   <div style={{ background: '#090d16', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border-color)', textAlign: 'center' }}>
                     <div style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase' }}>Available in Report</div>
-                    <strong style={{ color: '#10b981', fontSize: '1.15rem' }}>{availableCount} / 8 Available</strong>
+                    <strong style={{ color: '#10b981', fontSize: '1.15rem' }}>{availableCount} / {totalRequired} Available</strong>
                   </div>
                   <div style={{ background: '#090d16', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border-color)', textAlign: 'center' }}>
                     <div style={{ color: '#94a3b8', fontSize: '0.72rem', textTransform: 'uppercase' }}>Missing Features</div>

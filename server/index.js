@@ -34,6 +34,7 @@ app.use('/api/patients', require('./routes/patients'));
 app.use('/api/consultations', require('./routes/consultations'));
 app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/ml', require('./routes/ml'));
 app.use('/api/health-companion', require('./routes/healthCompanion'));
 const nlpModule = require('./routes/nlp');
 app.use('/api/nlp', nlpModule.router);
