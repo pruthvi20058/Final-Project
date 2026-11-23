@@ -4,7 +4,7 @@ services:
     name: mediagent-backend
     runtime: node
     rootDir: server
-    buildCommand: npm install && npm rebuild better-sqlite3 && pip install scikit-learn shap pandas numpy joblib
+    buildCommand: npm install && npm rebuild better-sqlite3 && pip install -r requirements.txt || pip install scikit-learn shap pandas numpy joblib openpyxl
     startCommand: node index.js
     plan: free
     envVars:

@@ -1,9 +1,9 @@
-"""
-MediAgent — Multi-Disease Feature Mapping & Readiness Service
-Maps extracted laboratory parameters, clinical signs, and verified symptoms to
-disease-specific canonical feature schemas for Diabetes, Malaria, Dengue, Typhoid, and Chikungunya.
-NEVER forces Pima Indian Diabetes features onto non-diabetes diseases.
-"""
+/**
+ * MediAgent — Multi-Disease Feature Mapping & Readiness Service
+ * Maps extracted laboratory parameters, clinical signs, and verified symptoms to
+ * disease-specific canonical feature schemas for Diabetes, Malaria, Dengue, Typhoid, and Chikungunya.
+ * NEVER forces Pima Indian Diabetes features onto non-diabetes diseases.
+ */
 
 const path = require('path');
 const fs = require('fs');

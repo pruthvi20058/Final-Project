@@ -178,8 +178,8 @@ app.get('/api/stats', (req, res) => {
 
 // Init DB and start
 getDb();
-app.listen(PORT, () => {
-  console.log(`\n🏥 MediAgent Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🏥 MediAgent Server running on port ${PORT}`);
   console.log('📡 API endpoints ready');
   console.log('🤖 Agent pipeline initialized\n');
 });
