@@ -308,8 +308,8 @@ router.get('/:id/prediction', async (req, res) => {
       (requestedDisease === 'diabetes' && !mName.includes('diabetes'))
     ));
 
-    // If report is READY and (no prediction is saved OR disease mismatch), automatically generate & persist it
-    if ((!pred || diseaseMismatch) && readiness.status === 'READY') {
+    // If report is READY and (no prediction is saved OR disease mismatch OR stored prediction has 0 probability), automatically generate & persist it
+    if ((!pred || diseaseMismatch || pred.probability === 0) && readiness.status === 'READY') {
       try {
         const autoPred = await generatePredictionForReport(report, readiness, requestedDisease);
         if (autoPred && (autoPred.status === 'SUCCESS' || autoPred.status === 'UNAVAILABLE')) {
@@ -326,8 +326,11 @@ router.get('/:id/prediction', async (req, res) => {
 
     // Case D: Report exists and valid prediction persisted
     if (pred) {
-      const isPositive = pred.predictedClass && (pred.predictedClass.includes('Positive') || pred.predictedClass.includes('Elevated') || (typeof pred.probability === 'number' && pred.probability >= 0.5));
-      const displayPct = typeof pred.probability === 'number' && pred.probability <= 1 ? Math.round(pred.probability * 1000) / 10 : (pred.probability || 0);
+      const isPositive = pred.predictedClass && (pred.predictedClass.includes('Positive') || pred.predictedClass.includes('Elevated') || pred.predictedClass.includes('Confirmed') || (typeof pred.probability === 'number' && pred.probability >= 0.5));
+      const posPct = typeof pred.displayProbabilityPct === 'number'
+        ? pred.displayProbabilityPct
+        : (typeof pred.probability === 'number' && pred.probability <= 1 ? Math.round(pred.probability * 1000) / 10 : (pred.probability || 0));
+      const negPct = Math.max(0, Math.round((100 - posPct) * 10) / 10);
 
       let defDisease = 'Type 2 Diabetes Mellitus';
       let defNegative = 'Low Risk / Negative for Diabetes';
@@ -358,12 +361,21 @@ router.get('/:id/prediction', async (req, res) => {
 
       const topPrediction = pred.topPrediction || {
         disease: isPositive ? defDisease : defNegative,
-        probability: displayPct,
+        probability: isPositive ? posPct : negPct,
         severity: isPositive ? 'high' : 'low',
         icd10: isPositive ? defPosIcd : defNegIcd,
         reasoning: pred.clinicalInterpretation || (isPositive ? `Elevated probability based on clinical indicators for ${defDisease}.` : `Laboratory parameters indicate low risk for ${defDisease}.`),
         supportingFeatures: (report.labResults || []).filter(l => l.status === 'HIGH' || l.status === 'ABNORMAL').map(l => `${l.testName}: ${l.value} ${l.units || ''}`)
       };
+
+      const differentials = (pred.differentials && pred.differentials.length > 0) ? pred.differentials : [
+        {
+          disease: isPositive ? defNegative : defDisease,
+          probability: isPositive ? negPct : posPct,
+          severity: isPositive ? 'low' : 'moderate',
+          icd10: isPositive ? defNegIcd : defPosIcd
+        }
+      ];
 
       return res.json({
         success: true,
@@ -372,6 +384,7 @@ router.get('/:id/prediction', async (req, res) => {
         prediction: {
           ...pred,
           topPrediction,
+          differentials,
           status: 'SUCCESS'
         },
         modelReadiness: readiness

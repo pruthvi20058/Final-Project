@@ -117,6 +117,8 @@ function computeAuthoritativePimaPrediction(featureData) {
   };
 }
 
+const { computeAuthoritativeDiseasePrediction } = require('./diseaseInferenceEngine');
+
 function runPythonInference(featureData) {
   return new Promise((resolve) => {
     const scriptPath = path.join(__dirname, '..', 'ml', 'predict.py');
@@ -133,7 +135,12 @@ function runPythonInference(featureData) {
 
     const isNonDiabetes = featureData && featureData.disease && featureData.disease !== 'diabetes';
     const safeFallback = (errMsg) => {
+      console.warn(`[PredictionEngine] Python ML execution failed (${errMsg}); routing to authoritative JS engine.`);
       if (isNonDiabetes) {
+        const jsResult = computeAuthoritativeDiseasePrediction(featureData.disease, featureData);
+        if (jsResult) {
+          return safeResolve(jsResult);
+        }
         return safeResolve({
           status: 'ERROR',
           disease: featureData.disease,
@@ -272,7 +279,17 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
     mlResult = await runPythonInference(featurePayload);
   } catch (err) {
     console.error(`[PredictionService] Python ML execution failed for ${targetDisease}:`, err.message);
-    throw err;
+    mlResult = targetDisease === 'diabetes'
+      ? computeAuthoritativePimaPrediction(featurePayload)
+      : computeAuthoritativeDiseasePrediction(targetDisease, featurePayload);
+  }
+
+  // Safety fallback if mlResult was returned with status: 'ERROR' or undefined probability
+  if (!mlResult || mlResult.status === 'ERROR' || mlResult.estimatedProbability === undefined) {
+    console.warn(`[PredictionService] Falling back to authoritative JavaScript inference for ${targetDisease}`);
+    mlResult = targetDisease === 'diabetes'
+      ? computeAuthoritativePimaPrediction(featurePayload)
+      : computeAuthoritativeDiseasePrediction(targetDisease, featurePayload);
   }
 
   // Handle Python-level Missing or Invalid Feature Rejection if any
@@ -357,6 +374,8 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
   });
 
   const isPositive = mlResult.rawTargetClass === 1 || rawProbability >= 0.5;
+  const posProbabilityPct = displayPct;
+  const negProbabilityPct = Math.max(0, Math.round((100 - displayPct) * 10) / 10);
 
   let diseaseDisplayName = 'Type 2 Diabetes Mellitus';
   let diseaseNegativeName = 'Low Risk / Negative for Diabetes';
@@ -387,7 +406,7 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
 
   const topPrediction = {
     disease: isPositive ? diseaseDisplayName : diseaseNegativeName,
-    probability: displayPct,
+    probability: isPositive ? posProbabilityPct : negProbabilityPct,
     severity: isPositive ? 'high' : 'low',
     icd10: isPositive ? diseasePosIcd : diseaseNegIcd,
     reasoning: mlResult.explanation && mlResult.explanation.topPositiveFactors && mlResult.explanation.topPositiveFactors.length > 0
@@ -398,10 +417,10 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
 
   const differentials = [
     {
-      disease: isPositive ? `Subclinical / Impaired Presentation (${diseaseDisplayName})` : diseaseDisplayName,
-      probability: isPositive ? Math.max(0, Math.round((100 - displayPct) * 10) / 10) : displayPct,
-      severity: 'moderate',
-      icd10: isPositive ? 'R69' : diseasePosIcd
+      disease: isPositive ? diseaseNegativeName : diseaseDisplayName,
+      probability: isPositive ? negProbabilityPct : posProbabilityPct,
+      severity: isPositive ? 'low' : 'moderate',
+      icd10: isPositive ? diseaseNegIcd : diseasePosIcd
     }
   ];
 

@@ -473,8 +473,8 @@ function saveReportRecord(reportObj) {
     file_size: reportObj.file_size || 0,
     raw_ocr_text: reportObj.raw_ocr_text || '',
     ocr_confidence: reportObj.ocr_confidence !== undefined ? reportObj.ocr_confidence : null,
-    chief_complaint: reportObj.chief_complaint || '',
-    symptoms: reportObj.symptoms || '',
+    chief_complaint: reportObj.chief_complaint || reportObj.chiefComplaint || '',
+    symptoms: Array.isArray(reportObj.symptoms) ? reportObj.symptoms.join(', ') : (reportObj.symptoms || ''),
     history: reportObj.history || '',
     status: reportObj.status || 'analyzed',
     demographics: demoStr
@@ -701,8 +701,10 @@ function getPredictionRecord(reportId) {
   if (!p) return null;
 
   const diffs = JSON.parse(p.differentials || '[]');
-  const isPositive = p.predicted_class && (p.predicted_class.includes('Positive') || p.predicted_class.includes('Elevated') || (typeof p.probability === 'number' && p.probability >= 0.5));
-  const displayPct = typeof p.probability === 'number' && p.probability <= 1 ? Math.round(p.probability * 1000) / 10 : (p.probability || 0);
+  const isPositive = p.predicted_class && (p.predicted_class.includes('Positive') || p.predicted_class.includes('Elevated') || p.predicted_class.includes('Confirmed') || (typeof p.probability === 'number' && p.probability >= 0.5));
+  const posPct = typeof p.probability === 'number' && p.probability <= 1 ? Math.round(p.probability * 1000) / 10 : (p.probability || 0);
+  const displayPct = posPct;
+  const negPct = Math.max(0, Math.round((100 - posPct) * 10) / 10);
 
   const parsedModelInfo = JSON.parse(p.model_info || '{}');
   const mName = (p.model_name || parsedModelInfo.modelName || '').toLowerCase();
@@ -737,7 +739,7 @@ function getPredictionRecord(reportId) {
 
   const topPrediction = parsedModelInfo.topPrediction || {
     disease: isPositive ? diseaseName : negativeName,
-    probability: displayPct,
+    probability: isPositive ? posPct : negPct,
     severity: isPositive ? 'high' : 'low',
     icd10: isPositive ? posIcd : negIcd,
     reasoning: isPositive ? `Elevated probability for ${diseaseName}.` : `Laboratory parameters indicate low risk for ${diseaseName}.`,
@@ -746,10 +748,10 @@ function getPredictionRecord(reportId) {
 
   const differentials = diffs.length > 0 ? diffs : [
     {
-      disease: isPositive ? `Subclinical / Impaired Presentation (${diseaseName})` : diseaseName,
-      probability: isPositive ? Math.max(0, Math.round((100 - displayPct) * 10) / 10) : displayPct,
-      severity: 'moderate',
-      icd10: isPositive ? 'R69' : posIcd
+      disease: isPositive ? negativeName : diseaseName,
+      probability: isPositive ? negPct : posPct,
+      severity: isPositive ? 'low' : 'moderate',
+      icd10: isPositive ? negIcd : posIcd
     }
   ];
 
