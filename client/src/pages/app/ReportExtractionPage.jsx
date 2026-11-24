@@ -595,7 +595,7 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                   </div>
                 )}
 
-                {missingCount > 0 && (
+                {missingCount > 0 && !isReady && (
                   <div style={{
                     fontSize: '0.8rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
                     padding: '12px 16px', borderRadius: 6, border: '1px solid rgba(245,158,11,0.25)',
@@ -605,6 +605,37 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                     <div style={{ flex: 1 }}>
                       <strong>Strict Clinical Guardrail:</strong> Missing features ({missingList.join(', ')}). The ML model safely abstains from fabricated prediction, returning <code>INSUFFICIENT_DATA</code>. You can provide missing values via "+ Add Lab Parameter" above.
                     </div>
+                  </div>
+                )}
+
+                {isReady && (
+                  <div style={{
+                    marginTop: 18,
+                    padding: '16px 20px',
+                    borderRadius: 8,
+                    background: 'rgba(0,212,170,0.08)',
+                    border: '1px solid rgba(0,212,170,0.3)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 12
+                  }}>
+                    <div>
+                      <div style={{ color: '#10b981', fontWeight: 700, fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>✓</span> Clinical Model Ready for {currentDisease.toUpperCase()} Screening
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                        {availableCount} canonical features extracted and verified. The Scikit-Learn {currentDisease.toUpperCase()} Classifier is ready for diagnostic estimation.
+                      </p>
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      style={{ padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}
+                      onClick={() => onNavigate('predictions')}
+                    >
+                      🤖 View {currentDisease.toUpperCase()} Risk Prediction →
+                    </button>
                   </div>
                 )}
               </div>

@@ -98,43 +98,96 @@ function computeDiseaseModelReadiness(report, diseaseName = 'diabetes') {
     let candidateVal = null;
     let candidateSource = null;
 
-    // Check laboratory results first
-    for (const item of labResults) {
-      const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
-      const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
-
-      const isMatch = synonyms.some(syn =>
-        normName === syn ||
-        rawName === syn ||
-        normName.includes(syn) ||
-        rawName.includes(syn)
-      );
-
-      if (isMatch) {
-        const val = parseFloat(item.value);
-        if (!isNaN(val)) {
-          candidateVal = val;
+    // 1. Dedicated physiological biomarker resolvers for infectious disease modules
+    if (featName === 'leukopenia') {
+      const wbcItem = labResults.find(item => {
+        const n = `${item.normalizedName || ''} ${item.rawName || ''} ${item.testName || ''}`.toLowerCase();
+        return n.includes('wbc') || n.includes('white blood cell') || n.includes('total count');
+      });
+      if (wbcItem) {
+        const wbcVal = parseFloat(wbcItem.value);
+        if (!isNaN(wbcVal)) {
+          const hasLeukopenia = wbcVal < 4000 || wbcItem.status === 'LOW';
+          candidateVal = hasLeukopenia ? 1 : 0;
           candidateSource = {
             sourceType: 'laboratory_result',
-            rawName: item.rawName || item.testName || item.raw_name || 'Lab Result',
+            rawName: `WBC Count: ${wbcVal} cells/µL (${hasLeukopenia ? 'Leukopenia Detected' : 'Normal / Preserved'})`,
             value: candidateVal,
-            unit: item.units || item.unit || unit
+            unit: 'present'
           };
-          break;
-        } else if (typeof item.value === 'string' && /positive|detected|present|reactive|high/i.test(item.value)) {
-          candidateVal = 1;
+        }
+      }
+    } else if (featName === 'thrombocytopenia') {
+      const platItem = labResults.find(item => {
+        const n = `${item.normalizedName || ''} ${item.rawName || ''} ${item.testName || ''}`.toLowerCase();
+        return n.includes('platelet') || n.includes('thrombocyte');
+      });
+      if (platItem) {
+        const platVal = parseFloat(platItem.value);
+        if (!isNaN(platVal)) {
+          const hasThrombocytopenia = platVal < 100000 || platItem.status === 'LOW';
+          candidateVal = hasThrombocytopenia ? 1 : 0;
           candidateSource = {
-            sourceType: 'laboratory_serology',
-            rawName: item.rawName || item.testName || 'Serology',
+            sourceType: 'laboratory_result',
+            rawName: `Platelet Count: ${platVal} cells/µL (${hasThrombocytopenia ? 'Thrombocytopenia Detected' : 'Normal / Preserved'})`,
             value: candidateVal,
-            unit: 'qualitative'
+            unit: 'present'
           };
-          break;
         }
       }
     }
 
-    // Check clinical symptoms text if not found in lab results
+    // 2. Check laboratory results if not yet resolved by dedicated resolvers
+    if (candidateVal === null) {
+      for (const item of labResults) {
+        const rawName = (item.rawName || item.testName || item.raw_name || item.test_name || '').toLowerCase().trim();
+        const normName = (item.normalizedName || item.normalized_name || '').toLowerCase().trim();
+
+        const isMatch = synonyms.some(syn =>
+          normName === syn ||
+          rawName === syn ||
+          normName.includes(syn) ||
+          rawName.includes(syn)
+        );
+
+        if (isMatch) {
+          // If the feature is binary (0-1), don't take raw unrelated numbers like CRP as the value
+          if (fInfo.valid_range && fInfo.valid_range.max === 1) {
+            candidateVal = 1;
+            candidateSource = {
+              sourceType: 'laboratory_result',
+              rawName: item.rawName || item.testName || label,
+              value: 1,
+              unit: 'present'
+            };
+            break;
+          }
+
+          const val = parseFloat(item.value);
+          if (!isNaN(val)) {
+            candidateVal = val;
+            candidateSource = {
+              sourceType: 'laboratory_result',
+              rawName: item.rawName || item.testName || item.raw_name || 'Lab Result',
+              value: candidateVal,
+              unit: item.units || item.unit || unit
+            };
+            break;
+          } else if (typeof item.value === 'string' && /positive|detected|present|reactive|high/i.test(item.value)) {
+            candidateVal = 1;
+            candidateSource = {
+              sourceType: 'laboratory_serology',
+              rawName: item.rawName || item.testName || 'Serology',
+              value: candidateVal,
+              unit: 'qualitative'
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Check clinical symptoms text if not found in lab results
     if (candidateVal === null) {
       const hasSymptom = synonyms.some(syn => {
         const regex = new RegExp(`\\b${syn.replace(/_/g, '[\\s_]')}\\b`, 'i');
@@ -153,6 +206,10 @@ function computeDiseaseModelReadiness(report, diseaseName = 'diabetes') {
     }
 
     if (candidateVal !== null) {
+      // Ensure binary features are strictly 0 or 1
+      if (fInfo.valid_range && fInfo.valid_range.max === 1) {
+        candidateVal = candidateVal > 0 ? 1 : 0;
+      }
       featureValues[featName] = candidateVal;
       featureSources[featName] = candidateSource;
       availableFeatureNames.push(featName);
@@ -160,7 +217,7 @@ function computeDiseaseModelReadiness(report, diseaseName = 'diabetes') {
       mappingDiagnostics.push({
         feature: featName,
         clinicalLabel: label,
-        status: 'AVAILABLE',
+        status: candidateVal > 0 ? 'AVAILABLE' : 'ABSENT',
         value: candidateVal,
         unit: candidateSource ? candidateSource.unit : unit,
         source: candidateSource ? candidateSource.rawName : 'clinical_observation',

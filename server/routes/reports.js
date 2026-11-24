@@ -713,7 +713,9 @@ router.get('/:id/evidence', (req, res) => {
     const pred = getPredictionRecord(req.params.id);
     const ev = pred && pred.evidence && Object.keys(pred.evidence).length > 0 ? pred.evidence : {};
 
-    const isChikungunya = (report.labResults || []).some(l => /chikungunya/i.test(l.rawName || l.testName || '')) ||
+    const isChikungunya = (report.disease === 'chikungunya') ||
+      (report.filename && /chikungunya/i.test(report.filename)) ||
+      (report.labResults || []).some(l => /chikungunya/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /joint|arthralgia|chikungunya/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms)) ||
       (pred && pred.topPrediction && /chikungunya/i.test(pred.topPrediction.disease || ''));
 
