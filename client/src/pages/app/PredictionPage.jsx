@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import ProbabilityBar from '../../components/ProbabilityBar';
-import { predictionService, reportService } from '../../services/api';
+import { predictionService, reportService, mlService } from '../../services/api';
 
 const DISEASES = [
   { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
@@ -12,6 +12,16 @@ const DISEASES = [
   { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
 ];
 
+const READINESS_BADGE = {
+  VERIFIED: { label: 'Verified', color: '#10b981' },
+  VERIFIED_LOW_PERFORMANCE: { label: 'Low Performance', color: '#f59e0b' },
+  NEEDS_CLEANING: { label: 'Needs Cleaning', color: '#f59e0b' },
+  NEEDS_SOURCE_VERIFICATION: { label: 'Source Unverified', color: '#f59e0b' },
+  UNAVAILABLE: { label: 'Unavailable', color: '#ef4444' },
+  MODEL_NOT_VALIDATED: { label: 'Not Validated', color: '#ef4444' },
+  UNKNOWN: { label: 'Unknown', color: '#94a3b8' }
+};
+
 export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -19,11 +29,23 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [pred, setPred] = useState(null);
   const [report, setReport] = useState(null);
   const [readiness, setReadiness] = useState(null);
+  const [diseaseReadiness, setDiseaseReadiness] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
 
   const loadData = async (targetDisease = selectedDisease) => {
     try {
       setLoading(true);
+
+      // Fetch disease model readiness status
+      try {
+        const readinessData = await mlService.getReadiness();
+        if (readinessData && readinessData.readiness) {
+          setDiseaseReadiness(readinessData.readiness);
+        }
+      } catch (readinessErr) {
+        console.warn('[PredictionPage] Could not fetch disease readiness:', readinessErr.message);
+      }
+
       let rep = null;
       try {
         rep = await reportService.getById(reportId || 'REP-9001', targetDisease);
@@ -270,6 +292,11 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {DISEASES.map(d => {
             const isSel = selectedDisease === d.id;
+            const diseaseReady = diseaseReadiness[d.id];
+            const badge = diseaseReady
+              ? READINESS_BADGE[diseaseReady.readiness] || READINESS_BADGE.UNKNOWN
+              : READINESS_BADGE.UNKNOWN;
+            const readinessLabel = diseaseReady ? diseaseReady.readiness.replace(/_/g, ' ') : 'Unknown';
             return (
               <button
                 key={d.id}
@@ -277,15 +304,24 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
                 onClick={() => setSelectedDisease(d.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                  borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                   background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
                   color: isSel ? '#090d16' : '#94a3b8',
                   border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
                   transition: 'all 0.15s ease'
                 }}
+                title={`${d.label}: ${readinessLabel} — ${diseaseReady?.readiness_reason || ''}`}
               >
                 <span>{d.icon}</span>
                 <span>{d.label}</span>
+                <span style={{
+                  fontSize: '0.62rem', padding: '1px 6px', borderRadius: 4,
+                  background: `rgba(${badge.color === '#10b981' ? '16,185,129' : badge.color === '#f59e0b' ? '245,158,11' : '239,68,68'},0.15)`,
+                  color: badge.color,
+                  fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
+                }}>
+                  {badge.label}
+                </span>
               </button>
             );
           })}
@@ -512,10 +548,15 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
 
       <SafetyDisclaimer compact />
 
-      {/* DISEASE SELECTOR TABS */}
+      {/* DISEASE SELECTOR TABS WITH READINESS BADGES */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {DISEASES.map(d => {
           const isSel = selectedDisease === d.id;
+          const diseaseReady = diseaseReadiness[d.id];
+          const badge = diseaseReady
+            ? READINESS_BADGE[diseaseReady.readiness] || READINESS_BADGE.UNKNOWN
+            : READINESS_BADGE.UNKNOWN;
+          const readinessLabel = diseaseReady ? diseaseReady.readiness.replace(/_/g, ' ') : 'Unknown';
           return (
             <button
               key={d.id}
@@ -523,15 +564,24 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
               onClick={() => setSelectedDisease(d.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                 background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
                 color: isSel ? '#090d16' : '#94a3b8',
                 border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
                 transition: 'all 0.15s ease'
               }}
+              title={`${d.label}: ${readinessLabel} — ${diseaseReady?.readiness_reason || ''}`}
             >
               <span>{d.icon}</span>
               <span>{d.label}</span>
+              <span style={{
+                fontSize: '0.62rem', padding: '1px 6px', borderRadius: 4,
+                background: `rgba(${badge.color === '#10b981' ? '16,185,129' : badge.color === '#f59e0b' ? '245,158,11' : '239,68,68'},0.15)`,
+                color: badge.color,
+                fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
+              }}>
+                {badge.label}
+              </span>
             </button>
           );
         })}

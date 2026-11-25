@@ -486,6 +486,9 @@ export const mlService = {
       body: JSON.stringify({ filePath, disease })
     });
   },
+  async getReadiness() {
+    return request('/ml/readiness');
+  },
   async uploadDataset(formData) {
     const res = await fetch(`${API_BASE}/ml/datasets/upload`, {
       method: 'POST',
@@ -506,7 +509,7 @@ export const mlService = {
   async predictDisease(disease, features) {
     return request(`/ml/predict/${disease}`, {
       method: 'POST',
-      body: JSON.stringify({ features })
+      body: JSON.stringify({ disease, features })
     });
   }
 };
