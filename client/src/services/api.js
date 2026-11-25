@@ -467,6 +467,17 @@ export const nlpService = {
 
   async getConsultationById(id) {
     return request(`/nlp/consultations/${id}`);
+  },
+
+  async verifySymptoms(payload) {
+    return request('/nlp/verify-symptoms', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async getModelReadiness(disease) {
+    return request(`/nlp/model-readiness/${disease}`);
   }
 };
 
