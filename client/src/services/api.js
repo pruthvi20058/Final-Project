@@ -296,6 +296,16 @@ export const predictionService = {
     if (!reportId) throw new Error('Report ID is required');
     const query = disease ? `?disease=${encodeURIComponent(disease)}` : '';
     const data = await request(`/reports/${reportId}/prediction${query}`);
+    // Pass through VERIFICATION_REQUIRED status so frontend can show verification gate
+    if (data.status === 'VERIFICATION_REQUIRED') {
+      return {
+        status: 'VERIFICATION_REQUIRED',
+        report: data.report,
+        modelReadiness: data.modelReadiness,
+        message: data.message,
+        prediction: null
+      };
+    }
     if (data.prediction) {
       return {
         ...data.prediction,
