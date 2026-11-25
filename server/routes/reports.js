@@ -17,6 +17,7 @@ const { extractTextFromFile, parseLabValuesFromText } = require('../services/rep
 const { generatePredictionForReport, runDiseaseInference } = require('../services/predictionService');
 const { computeModelReadiness, logReadinessDiagnostics } = require('../services/pimaFeatureMapper');
 const { computeDiseaseModelReadiness } = require('../services/diseaseFeatureMapper');
+const { retrieveMedicalEvidence } = require('../services/ragService');
 const diagnosticAgent = require('../agents/diagnosticAgent');
 
 // Multer Storage Config for Unique Collision-Safe Filenames
@@ -863,47 +864,45 @@ router.get('/:id/evidence', (req, res) => {
     }
 
     const pred = getPredictionRecord(req.params.id);
-    const ev = pred && pred.evidence && Object.keys(pred.evidence).length > 0 ? pred.evidence : {};
 
-    const isChikungunya = (report.disease === 'chikungunya') ||
-      (report.filename && /chikungunya/i.test(report.filename)) ||
-      (report.labResults || []).some(l => /chikungunya/i.test(l.rawName || l.testName || '')) ||
-      (report.symptoms && /joint|arthralgia|chikungunya/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms)) ||
-      (pred && pred.topPrediction && /chikungunya/i.test(pred.topPrediction.disease || ''));
+    // Build genuine retrieval query from report context (no PII)
+    const diseaseContext = (pred && pred.disease) || report.disease || 'diabetes';
+    const featureTerms = (report.labResults || [])
+      .filter(l => l.value !== undefined && l.value !== null)
+      .map(l => `${l.normalizedName || l.testName || ''}`)
+      .filter(Boolean)
+      .join(' ');
 
-    let sources = ev.sources;
-    if (!sources || sources.length === 0) {
-      if (isChikungunya) {
-        sources = [
-          {
-            id: 'CHIK-DOC-1',
-            title: 'CDC Guidelines for Clinical Management of Chikungunya Virus',
-            type: 'Clinical Guideline',
-            section: 'Diagnosis & Clinical Distinction from Dengue',
-            summary: 'Anti-CHIKV IgM ELISA or RT-PCR confirms acute infection. Symmetrical polyarthralgia with preserved platelets distinguishes Chikungunya from Dengue. Strict precaution: Avoid Aspirin and NSAIDs during the acute febrile phase until Dengue thrombocytopenia is definitively excluded.',
-            relevanceScore: 98
-          },
-          {
-            id: 'CHIK-DOC-2',
-            title: 'WHO Technical Guidance on Arboviral Infections',
-            type: 'Clinical Guideline',
-            section: 'Supportive Therapy and Post-Chikungunya Polyarthralgia',
-            summary: 'Primary treatment is symptomatic with paracetamol, aggressive oral rehydration, and joint rest. Up to 30-40% may develop chronic post-chikungunya reactive arthritis requiring structured physiotherapy and anti-inflammatory therapy.',
-            relevanceScore: 95
-          }
-        ];
-      } else {
-        sources = [
-          {
-            id: 'DOC-1',
-            title: 'ADA Standards of Medical Care in Diabetes — 2026 Guidelines',
-            type: 'Clinical Guideline',
-            section: 'Section 2: Classification and Diagnosis of Diabetes',
-            summary: 'Fasting plasma glucose ≥ 126 mg/dL or HbA1c ≥ 6.5% confirms diagnosis of Diabetes Mellitus.',
-            relevanceScore: 96
-          }
-        ];
-      }
+    const queryKeywords = `${diseaseContext} ${featureTerms}`.trim();
+
+    // Use genuine RAG retrieval — never hardcode disease-specific evidence
+    const ragResult = retrieveMedicalEvidence({
+      featuresPresent: (report.labResults || []).map(l => l.normalizedName || l.testName || ''),
+      predictedOutcome: pred ? pred.predictedClass || '' : '',
+      queryKeywords
+    });
+
+    let sources = [];
+    let retrievalStatus = 'NOT_RETRIEVED';
+    let retrievalMessage = '';
+
+    if (ragResult.status === 'SUCCESS' && ragResult.sources && ragResult.sources.length > 0) {
+      sources = ragResult.sources.map(s => ({
+        id: s.sourceId,
+        title: s.title,
+        type: s.documentType || 'Clinical Guideline',
+        section: s.topic || '',
+        summary: s.excerpt || '',
+        organization: s.organization || '',
+        publicationDate: s.publicationDate || '',
+        url: s.url || '',
+        relevanceScore: s.relevanceScore !== undefined ? Math.round(s.relevanceScore * 100) : null
+      }));
+      retrievalStatus = 'RETRIEVED';
+      retrievalMessage = `Retrieved ${sources.length} evidence source(s) from verified knowledge base.`;
+    } else {
+      retrievalStatus = 'EVIDENCE_UNAVAILABLE';
+      retrievalMessage = ragResult.message || 'No verified medical evidence was retrieved for this report.';
     }
 
     return res.json({
@@ -911,8 +910,10 @@ router.get('/:id/evidence', (req, res) => {
       evidence: {
         predictionId: pred ? pred.id : `PRED-${report.id}`,
         reportId: report.id,
-        consistencyStatus: ev.consistencyStatus || 'high',
-        consistencyScore: ev.consistencyScore || 95,
+        retrievalStatus,
+        retrievalMessage,
+        consistencyStatus: null,
+        consistencyScore: null,
         sources
       }
     });
