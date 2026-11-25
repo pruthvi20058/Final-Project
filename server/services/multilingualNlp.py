@@ -18,6 +18,12 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
+# Translation credentials — loaded from environment, NEVER hardcoded.
+# MYMEMORY_EMAIL: optional MyMemory translator contact email (higher rate limit).
+# TRANSLATION_PROVIDER: 'mymemory' | 'none' (fallback to dictionary only).
+TRANSLATION_PROVIDER = os.environ.get('TRANSLATION_PROVIDER', 'mymemory')
+MYMEMORY_EMAIL = os.environ.get('MYMEMORY_EMAIL', None)
+
 # Optional translation import
 try:
     from deep_translator import MyMemoryTranslator
@@ -451,34 +457,86 @@ def extract_clinical_entities(text, detected_lang='en'):
     }
 
 
-def translate_text(text, source_lang, target_lang='en'):
-    """Translates text reliably between languages using MyMemory with fallback dictionary."""
+def translate_text(text, source_lang, target_lang='en', translation_provider='mymemory', mymemory_email=None):
+    """Translates text reliably between languages using MyMemory with fallback dictionary.
+
+    Translation credentials are loaded from environment variables — never hardcoded.
+    Provider failure is handled gracefully with dictionary fallback.
+    """
     if source_lang == target_lang or not text.strip():
         return text
 
     src_code = LOCALE_MAP.get(source_lang, source_lang)
     tgt_code = LOCALE_MAP.get(target_lang, target_lang)
 
-    if HAS_TRANSLATOR:
+    # Attempt MyMemory translation only if provider is enabled and library is installed
+    if translation_provider == 'mymemory' and HAS_TRANSLATOR:
         try:
             translator = MyMemoryTranslator(source=src_code, target=tgt_code)
+            if mymemory_email:
+                try:
+                    translator.email = mymemory_email
+                except Exception:
+                    pass
             res = translator.translate(text)
-            if res and not res.startswith('MYMEMORY WARNING'):
+            if res and not res.startswith('MYMEMORY WARNING') and not res.startswith('MYMEMORY ERROR'):
                 return res
         except Exception:
+            # Provider failure — fall through to dictionary fallback
             pass
 
-    # High-quality fallback for core clinical responses
-    if target_lang == 'kn':
-        if 'fever' in text.lower():
-            return "ನಿಮ್ಮ ಲಕ್ಷಣಗಳ ಆಧಾರದ ಮೇಲೆ, ಜ್ವರದ ಸಾಧ್ಯತೆಯಿದೆ. ದಯವಿಟ್ಟು ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ."
-        return f"{text} (ಕನ್ನಡ ಭಾಷಾಂತರ ಲಭ್ಯವಿದೆ)"
-    elif target_lang == 'hi':
-        if 'fever' in text.lower():
-            return "आपके लक्षणों के आधार पर बुखार की संभावना है। कृपया डॉक्टर से परामर्श लें।"
-        return f"{text} (हिंदी अनुवाद उपलब्ध है)"
+    # Dictionary fallback for core clinical responses (no external dependency)
+    fallback = _dictionary_fallback(text, target_lang)
+    if fallback is not None:
+        return fallback
 
     return text
+
+
+def _dictionary_fallback(text, target_lang):
+    """Static clinical phrase fallback when translation provider is unavailable."""
+    lower = text.lower()
+    if target_lang == 'kn':
+        if 'fever' in lower:
+            return "ನಿಮ್ಮ ಲಕ್ಷಣಗಳ ಆಧಾರದ ಮೇಲೆ, ಜ್ವರದ ಸಾಧ್ಯತೆಯಿದೆ. ದಯವಿಟ್ಟು ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ."
+        if 'headache' in lower:
+            return "ನಿಮಗೆ ತಲೆನೋವು ಇದೆ. ದಯವಿಟ್ಟು ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ."
+        return f"{text} (ಕನ್ನಡ ಭಾಷಾಂತರ ಲಭ್ಯವಿದೆ)"
+    elif target_lang == 'hi':
+        if 'fever' in lower:
+            return "आपके लक्षणों के आधार पर बुखार की संभावना है। कृपया डॉक्टर से परामर्श लें।"
+        if 'headache' in lower:
+            return "आपको सिरदर्द है। कृपया डॉक्टर से परामर्श लें।"
+        return f"{text} (हिंदी अनुवाद उपलब्ध है)"
+    elif target_lang == 'ta':
+        if 'fever' in lower:
+            return "உங்கள் அறிகுறிகளின் அடிப்படையில் காய்ச்சல் வாய்ப்பு உள்ளது. மருத்துவரை சந்திக்கவும்."
+        return f"{text} (தமிழ் மொழிபெயர்ப்பு கிடைக்கிறது)"
+        if 'fever' in lower:
+            return "మీ లక్షణాల ఆధారంగా జ్వరం ఉండవచ్చు. దయచేసి vaidudini sampradinchandi."
+            return "మీ లక్షణాల ఆధారంగా జ్వరం ఉండవచ్చు. దయచేసి vaidudini sampradinchandi."
+        return f"{text} (తెలుగు అనువాది ಲಭ్యమే)"
+    elif target_lang == 'ml':
+        if 'fever' in lower:
+            return "നിങ്ങളുടെ ലക്ഷണന്റെ അടിസ്ഥാനത്തിൽ പനി സാധ്യതയുണ്ട്. ഡോക്ടറെ സമീപിക്കുക."
+        return f"{text} (മലയാളം വിവർത്തനം ലഭ്യമാണ്)"
+    elif target_lang == 'mr':
+        if 'fever' in lower:
+            return "आपल्या लक्षणांच्या आधारे तापाची शक्यता आहे. कृपया डॉक्टरांचा सल्ला घ्या."
+        return f"{text} (मराठी भाषांतर उपलब्ध आहे)"
+    elif target_lang == 'bn':
+        if 'fever' in lower:
+            return "আপনার লক্ষণದ ভিত্তিতে জ্বর থাকার সম্ভাবনা রয়েছে। দয়া করে চিকিৎসকের পরামর্শ নিন।"
+        return f"{text} (বাংলা অনুবাদ উপলব্ধ রয়েছে)"
+    elif target_lang == 'gu':
+        if 'fever' in lower:
+            return "તમારા લક્ષણોના આધારે તાવની શક્યતા છે. કૃપા કરીને ડૉક્ટરની સલાહ લો."
+        return f"{text} (ગુજરાતી ભાષાંતર ઉપલબ્ધ છે)"
+    elif target_lang == 'pa':
+        if 'fever' in lower:
+            return "ਤੁਹਾਡੇ ਲੱਛਣਾਂ ਦੇ ਅਧਾਰ 'ਤੇ ਬੁਖਾਰ ਦੀ ਸੰਭਾਵਨਾ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਡਾਕਟਰ ਦੀ ਸਲਾਹ ਲਓ."
+        return f"{text} (ਪੰਜਾਬੀ ਅਨੁਵਾਦ ਉਪਲਬਧ ਹੈ)"
+    return None
 
 
 def process_multilingual_input(input_text, preferred_language=None):

@@ -3,6 +3,8 @@
     "disease": "diabetes",
     "display_name": "Type 2 Diabetes Mellitus",
     "status": "TRAINED",
+    "readiness": "VERIFIED",
+    "readiness_reason": "Dataset verified (Pima Indians, 768 records), model trained with stratified split, scaler on train only, evaluation metrics computed on held-out test set.",
     "model_type": "tabular",
     "algorithm": "Logistic Regression + StandardScaler",
     "model_version": "v2.0.0-pima-diabetes",
@@ -12,20 +14,10 @@
     "metadata_path": "models/diabetes/model_metadata.json",
     "feature_count": 8,
     "features": [
-      "preg",
-      "plas",
-      "pres",
-      "skin",
-      "insu",
-      "mass",
-      "pedi",
-      "age"
+      "preg", "plas", "pres", "skin", "insu", "mass", "pedi", "age"
     ],
     "target_column": "outcome",
-    "classes": [
-      "0",
-      "1"
-    ],
+    "classes": ["0", "1"],
     "class_labels": {
       "0": "Non-Diabetic",
       "1": "Diabetic"
@@ -36,7 +28,8 @@
       "recall_sensitivity": 0.5185,
       "specificity": 0.82,
       "f1_score": 0.56,
-      "roc_auc": 0.823
+      "roc_auc": 0.823,
+      "brier_score": 0.1679
     },
     "dataset_provenance": {
       "name": "Pima Indians Diabetes Dataset (NIDDK / UCI #34)",
@@ -45,14 +38,17 @@
       "citation": "Smith et al. (1988), IEEE Computer Society Press"
     },
     "explanation_method": "SHAP LinearExplainer",
-    "updated_at": "2026-10-04T11:13:00Z"
+    "updated_at": "2026-10-04T11:13:00Z",
+    "audit_flags": []
   },
   "dengue": {
     "disease": "dengue",
     "display_name": "Dengue Fever Infection",
     "status": "TRAINED",
+    "readiness": "NEEDS_CLEANING",
+    "readiness_reason": "Model trained but test metrics report 100.0% across all algorithms — statistically implausible for clinical data. Possible target leakage or label contamination. Dataset requires cleaning and re-validation before clinical use.",
     "model_type": "tabular",
-    "algorithm": "HistGradientBoostingClassifier / Random Forest",
+    "algorithm": "Random Forest",
     "model_version": "v1.0.0-dengue-clinical",
     "model_path": "models/dengue/model.joblib",
     "preprocessor_path": "models/dengue/preprocessor.joblib",
@@ -60,52 +56,44 @@
     "metadata_path": "models/dengue/model_metadata.json",
     "feature_count": 14,
     "features": [
-      "Gender",
-      "Age",
-      "NS1",
-      "IgG",
-      "IgM",
-      "Fever_Duration",
-      "Body_Temperature",
-      "Platelet_Count",
-      "WBC_Count",
-      "Joint_Pain",
-      "Headache",
-      "Retro_Orbital_Pain",
-      "Myalgia",
-      "Rash"
+      "Gender", "Age", "NS1", "IgG", "IgM", "Fever_Duration",
+      "Body_Temperature", "Platelet_Count", "WBC_Count",
+      "Joint_Pain", "Headache", "Retro_Orbital_Pain", "Myalgia", "Rash"
     ],
     "target_column": "Outcome",
-    "classes": [
-      "0",
-      "1"
-    ],
+    "classes": ["0", "1"],
     "class_labels": {
       "0": "Dengue Negative / Other Febrile Illness",
       "1": "Dengue Confirmed"
     },
     "metrics": {
-      "accuracy": 0.965,
-      "precision": 0.953,
-      "recall_sensitivity": 0.981,
-      "specificity": 0.947,
-      "f1_score": 0.967,
-      "roc_auc": 0.993
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall_sensitivity": 1.0,
+      "specificity": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "brier_score": 0.0,
+      "audit_flag": "PERFECT_METRICS_SUSPICIOUS — possible data leakage"
     },
     "dataset_provenance": {
       "name": "Dengue Clinical Hematology & Serology Cohort",
       "sample_size": 1000,
-      "type": "tabular"
+      "type": "tabular",
+      "source": "Kaggle Clinical Dengue Detection / wahiduzzaman1511-ai (unverified)"
     },
     "explanation_method": "Feature Importances / Risk Coefficients",
-    "updated_at": "2026-11-08T20:44:00Z"
+    "updated_at": "2026-11-08T20:44:00Z",
+    "audit_flags": ["PERFECT_METRICS_SUSPICIOUS", "SOURCE_UNVERIFIED"]
   },
   "malaria": {
     "disease": "malaria",
     "display_name": "Malaria Clinical Severity & Histology",
     "status": "TRAINED",
-    "model_type": "tabular_and_image",
-    "algorithm": "GradientBoostingClassifier (Clinical) + Histology Support",
+    "readiness": "VERIFIED_LOW_PERFORMANCE",
+    "readiness_reason": "Dataset verified (337 records), model trained with class_weight='balanced', evaluation metrics computed on held-out test set. CV ROC-AUC 0.47 indicates near-chance performance — use with extreme clinical caution.",
+    "model_type": "tabular",
+    "algorithm": "Logistic Regression + StandardScaler (class_weight='balanced')",
     "model_version": "v1.0.0-malaria-severity",
     "model_path": "models/malaria/model.joblib",
     "preprocessor_path": "models/malaria/preprocessor.joblib",
@@ -113,55 +101,47 @@
     "metadata_path": "models/malaria/model_metadata.json",
     "feature_count": 17,
     "features": [
-      "age",
-      "sex",
-      "fever",
-      "cold",
-      "rigor",
-      "fatigue",
-      "headace",
-      "bitter_tongue",
-      "vomitting",
-      "diarrhea",
-      "Convulsion",
-      "Anemia",
-      "jundice",
-      "cocacola_urine",
-      "hypoglycemia",
-      "prostraction",
-      "hyperpyrexia"
+      "age", "sex", "fever", "cold", "rigor", "fatigue",
+      "headace", "bitter_tongue", "vomitting", "diarrhea",
+      "Convulsion", "Anemia", "jundice", "cocacola_urine",
+      "hypoglycemia", "prostraction", "hyperpyrexia"
     ],
     "target_column": "severe_maleria",
-    "classes": [
-      "0",
-      "1"
-    ],
+    "classes": ["0", "1"],
     "class_labels": {
       "0": "Mild / Uncomplicated Malaria",
       "1": "Severe / Complicated Malaria"
     },
     "metrics": {
-      "accuracy": 0.8676,
-      "precision": 0.8182,
-      "recall_sensitivity": 0.7826,
-      "specificity": 0.9111,
-      "f1_score": 0.8,
-      "roc_auc": 0.906
+      "accuracy": 0.6176,
+      "precision": 0.4516,
+      "recall_sensitivity": 0.6087,
+      "specificity": 0.6222,
+      "f1_score": 0.5185,
+      "roc_auc": 0.6879,
+      "brier_score": 0.2237,
+      "cv_roc_auc_mean": 0.472,
+      "cv_accuracy_mean": 0.5129,
+      "cv_f1_mean": 0.388
     },
     "dataset_provenance": {
       "name": "Clinical Malaria Emergency Severity Cohort",
       "sample_size": 337,
-      "type": "tabular"
+      "type": "tabular",
+      "source": "Clinical Malaria Study / abiolalawal14"
     },
     "explanation_method": "Feature Weight Impact Attribution",
-    "updated_at": "2026-11-08T20:44:00Z"
+    "updated_at": "2026-11-08T20:44:00Z",
+    "audit_flags": ["LOW_PERFORMANCE", "CV_ROC_AUC_NEAR_CHANCE"]
   },
   "chikungunya": {
     "disease": "chikungunya",
     "display_name": "Chikungunya Arboviral Disease",
     "status": "TRAINED",
+    "readiness": "NEEDS_CLEANING",
+    "readiness_reason": "Dataset contains 8,319 duplicate rows out of 10,000 that were not removed before train/test split — data leakage. Model metrics (~57% accuracy on balanced data) are near-chance. Deduplicate dataset and retrain before clinical use.",
     "model_type": "tabular",
-    "algorithm": "RandomForestClassifier (Calibrated)",
+    "algorithm": "RandomForestClassifier",
     "model_version": "v1.0.0-chikungunya-sinan",
     "model_path": "models/chikungunya/model.joblib",
     "preprocessor_path": "models/chikungunya/preprocessor.joblib",
@@ -169,111 +149,64 @@
     "metadata_path": "models/chikungunya/model_metadata.json",
     "feature_count": 12,
     "features": [
-      "fever",
-      "myalgia",
-      "headache",
-      "rash",
-      "vomiting",
-      "nausea",
-      "back_pain",
-      "conjunctivitis",
-      "arthritis",
-      "arthralgia",
-      "petechiae",
-      "leukopenia"
+      "fever", "myalgia", "headache", "rash", "vomiting",
+      "nausea", "back_pain", "conjunctivitis", "arthritis",
+      "arthralgia", "petechiae", "leukopenia"
     ],
     "target_column": "target",
-    "classes": [
-      "0",
-      "1"
-    ],
+    "classes": ["0", "1"],
     "class_labels": {
       "0": "Discarded / Febrile Negative Control",
       "1": "Chikungunya Confirmed"
     },
     "metrics": {
-      "accuracy": 0.6975,
-      "precision": 0.7024,
-      "recall_sensitivity": 0.685,
-      "specificity": 0.71,
-      "f1_score": 0.6935,
-      "roc_auc": 0.7635
+      "accuracy": 0.5665,
+      "precision": 0.5682,
+      "recall_sensitivity": 0.554,
+      "specificity": 0.579,
+      "f1_score": 0.561,
+      "roc_auc": 0.5799,
+      "brier_score": 0.2454,
+      "duplicate_rows_detected": 8319,
+      "audit_flag": "DUPLICATE_ROWS_NOT_REMOVED — data leakage in train/test split"
     },
     "dataset_provenance": {
       "name": "Brazil Ministry of Health SINAN Arboviral Cohort",
       "sample_size": 10000,
-      "type": "tabular"
+      "type": "tabular",
+      "source": "Brazil Ministry of Health / Arboili Open Data Paper"
     },
     "explanation_method": "Feature Gini Importance Ranking",
-    "updated_at": "2026-11-08T20:45:00Z"
+    "updated_at": "2026-11-08T20:45:00Z",
+    "audit_flags": ["DUPLICATE_ROWS_NOT_REMOVED", "NEAR_CHANCE_PERFORMANCE"]
   },
   "typhoid": {
     "disease": "typhoid",
     "display_name": "Typhoid Enteric Fever",
-    "status": "TRAINED",
+    "status": "NOT_TRAINED",
+    "readiness": "UNAVAILABLE",
+    "readiness_reason": "No verified training dataset with documented provenance available locally. The TyphoDx-BD dataset (Mendeley DOI: 10.17632/m9pnvv2vpv.1) is restricted behind authenticated access and not present in this repository. Local typhoid_clinical.csv (600 records) provenance cannot be verified. 98.33% reported accuracy is suspicious. Model gated — no inference served.",
     "model_type": "tabular",
-    "algorithm": "GradientBoostingClassifier + StandardScaler",
-    "model_version": "v1.0.0-typhoid-clinical",
+    "algorithm": "Pending Verified Dataset Training",
+    "model_version": "v1.0.0-typhoid",
     "model_path": "models/typhoid/model.joblib",
     "preprocessor_path": "models/typhoid/preprocessor.joblib",
     "schema_path": "models/typhoid/feature_schema.json",
     "metadata_path": "models/typhoid/model_metadata.json",
-    "feature_count": 14,
-    "features": [
-      "fever_duration",
-      "body_temperature",
-      "headache",
-      "abdominal_pain",
-      "weakness",
-      "diarrhea",
-      "constipation",
-      "widal_to",
-      "widal_th",
-      "blood_culture",
-      "wbc_count",
-      "platelet_count",
-      "hepatomegaly",
-      "splenomegaly"
-    ],
+    "feature_count": 0,
+    "features": [],
     "target_column": "typhoid_diagnosis",
-    "classes": [
-      "0",
-      "1"
-    ],
-    "class_labels": {
-      "0": "Typhoid Negative / Non-Enteric Febrile Illness",
-      "1": "Typhoid Enteric Fever Confirmed"
-    },
-    "metrics": {
-      "is_multiclass": false,
-      "accuracy": 0.9833,
-      "precision": 0.9649,
-      "recall_sensitivity": 1.0,
-      "specificity": 0.9692,
-      "f1_score": 0.9821,
-      "roc_auc": 0.9923,
-      "brier_score": 0.0142,
-      "confusion_matrix": {
-        "tn": 63,
-        "fp": 2,
-        "fn": 0,
-        "tp": 55
-      },
-      "classes": [
-        "0",
-        "1"
-      ],
-      "class_labels": {
-        "0": "Typhoid Negative / Non-Enteric Febrile Illness",
-        "1": "Typhoid Enteric Fever Confirmed"
-      }
-    },
+    "classes": [],
+    "class_labels": {},
+    "metrics": {},
     "dataset_provenance": {
-      "name": "TyphoDx-BD Clinical Dataset / Custom Upload",
+      "name": "TyphoDx-BD (Mendeley 10.17632/m9pnvv2vpv.1) — RESTRICTED, not in repository",
       "sample_size": 0,
-      "type": "tabular"
+      "type": "tabular",
+      "status": "NOT_ACCESSIBLE"
     },
     "explanation_method": "Clinical Feature Attribution",
-    "updated_at": "2026-11-22T14:07:25.959329Z"
+    "updated_at": null,
+    "audit_flags": ["DATASET_NOT_VERIFIED", "MODEL_GATED"]
   }
 }

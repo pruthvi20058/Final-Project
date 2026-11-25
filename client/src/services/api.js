@@ -467,6 +467,17 @@ export const nlpService = {
 
   async getConsultationById(id) {
     return request(`/nlp/consultations/${id}`);
+  },
+
+  async verifySymptoms(payload) {
+    return request('/nlp/verify-symptoms', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async getModelReadiness(disease) {
+    return request(`/nlp/model-readiness/${disease}`);
   }
 };
 
@@ -485,6 +496,9 @@ export const mlService = {
       method: 'POST',
       body: JSON.stringify({ filePath, disease })
     });
+  },
+  async getReadiness() {
+    return request('/ml/readiness');
   },
   async uploadDataset(formData) {
     const res = await fetch(`${API_BASE}/ml/datasets/upload`, {
@@ -506,7 +520,7 @@ export const mlService = {
   async predictDisease(disease, features) {
     return request(`/ml/predict/${disease}`, {
       method: 'POST',
-      body: JSON.stringify({ features })
+      body: JSON.stringify({ disease, features })
     });
   }
 };

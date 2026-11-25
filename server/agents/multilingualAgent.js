@@ -5,11 +5,182 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
 const { processMultilingualText, transcribeAudio, synthesizeSpeech } = require('../services/multilingualService');
 const triageAgent = require('./triageAgent');
 const diagnosticAgent = require('./diagnosticAgent');
 const ragAgent = require('./ragAgent');
 const guardrailAgent = require('./guardrailAgent');
+
+// --- Model Registry (Task 4 readiness) ---
+const ML_DIR = path.join(__dirname, '..', 'ml');
+const MODEL_REGISTRY_PATH = path.join(ML_DIR, 'models', 'model_registry.json');
+
+let modelRegistryCache = null;
+let modelRegistryLoadError = null;
+
+function loadModelRegistry() {
+  if (modelRegistryCache) return modelRegistryCache;
+  if (modelRegistryLoadError) return null;
+  try {
+    const raw = fs.readFileSync(MODEL_REGISTRY_PATH, 'utf8');
+    modelRegistryCache = JSON.parse(raw);
+    return modelRegistryCache;
+  } catch (err) {
+    modelRegistryLoadError = err.message;
+    console.error('[MultilingualAgent] Failed to load model registry:', err.message);
+    return null;
+  }
+}
+
+function getModelReadiness(diseaseKey) {
+  const registry = loadModelRegistry();
+  if (!registry) return null;
+  const entry = registry[diseaseKey];
+  if (!entry) return null;
+  return {
+    disease: entry.disease,
+    status: entry.status,
+    readiness: entry.readiness,
+    readiness_reason: entry.readiness_reason,
+    model_type: entry.model_type,
+    feature_count: entry.feature_count,
+    features: entry.features || [],
+    gated: entry.readiness !== 'VERIFIED' && entry.readiness !== 'VERIFIED_LOW_PERFORMANCE',
+  };
+}
+
+function isModelGated(diseaseKey) {
+  const readiness = getModelReadiness(diseaseKey);
+  if (!readiness) return true; // unknown → treat as gated
+  return readiness.gated;
+}
+
+// --- Symptom → Disease Feature Mapping (Task 4 integration) ---
+// Maps extracted clinical symptoms to disease-specific feature names.
+// Strictly NO mapping into Pima diabetes tabular features (safeguard per Task 4).
+// Only diseases that pass readiness gating are eligible for mapping.
+
+const SYMPTOM_TO_FEATURE_MAP = {
+  // Malaria (VERIFIED_LOW_PERFORMANCE — usable with extreme caution)
+  malaria: {
+    fever: 'fever',
+    headache: 'headace',
+    fatigue: 'fatigue',
+    vomiting: 'vomitting',
+    'shortness of breath': null, // no direct feature
+    'chest pain': null,
+    'joint pain': null,
+    'abdominal pain': null,
+    nausea: null,
+    cough: null,
+  },
+  // Dengue (NEEDS_CLEANING — gated, no inference)
+  dengue: {
+    fever: 'Fever_Duration',
+    headache: 'Headache',
+    'joint pain': 'Joint_Pain',
+    'shortness of breath': null,
+    'chest pain': null,
+    fatigue: null,
+    nausea: null,
+    vomiting: null,
+    cough: null,
+  },
+  // Chikungunya (NEEDS_CLEANING — gated, no inference)
+  chikungunya: {
+    fever: 'fever',
+    headache: 'headache',
+    'joint pain': 'arthralgia',
+    fatigue: null,
+    nausea: null,
+    vomiting: 'vomiting',
+    'shortness of breath': null,
+    'chest pain': null,
+    cough: null,
+  },
+  // Typhoid — UNAVAILABLE, no mapping
+  typhoid: {},
+  // Diabetes — Pima is tabular-only, NO symptom mapping (hard safeguard)
+  diabetes: {},
+};
+
+function mapSymptomsToDiseaseFeatures(activeSymptoms, diseaseKey) {
+  const readiness = getModelReadiness(diseaseKey);
+
+  // Unknown or gated disease → no mapping
+  if (!readiness || readiness.gated) {
+    return {
+      diseaseKey,
+      eligible: false,
+      gated: true,
+      readiness,
+      mappedFeatures: {},
+      missingRequired: [],
+      status: readiness
+        ? `MODEL_GATED_${readiness.readiness}`
+        : 'MODEL_NOT_AVAILABLE',
+      message: readiness
+        ? `Model for '${diseaseKey}' is gated (readiness: ${readiness.readiness}). ${readiness.readiness_reason || ''}`
+        : `No model registry entry for disease '${diseaseKey}'.`,
+    };
+  }
+
+  // Diabetes → Pima is strictly tabular, no symptom mapping
+  if (diseaseKey === 'diabetes') {
+    return {
+      diseaseKey: 'diabetes',
+      eligible: false,
+      gated: false,
+      readiness,
+      mappedFeatures: {},
+      missingRequired: readiness.features,
+      status: 'PIMA_TABULAR_ONLY',
+      message:
+        'Symptom→Pima mapping is prohibited. Pima diabetes model requires validated 8-parameter numerical vectors only.',
+    };
+  }
+
+  const featureMap = SYMPTOM_TO_FEATURE_MAP[diseaseKey] || {};
+  const mappedFeatures = {};
+  const missingRequired = [];
+
+  for (const symptom of activeSymptoms) {
+    const symKey = symptom.toLowerCase().trim();
+    const featureName = featureMap[symKey];
+    if (featureName) {
+      mappedFeatures[featureName] = {
+        sourceSymptom: symptom,
+        mappedFrom: 'symptom_extraction',
+        value: 1, // binary presence flag from NLP
+      };
+    }
+  }
+
+  // Identify required features not covered by symptoms
+  for (const feat of readiness.features) {
+    if (!mappedFeatures[feat]) {
+      missingRequired.push(feat);
+    }
+  }
+
+  const hasRequired = missingRequired.length === 0;
+  const status = hasRequired ? 'OK' : 'INSUFFICIENT_DATA';
+
+  return {
+    diseaseKey,
+    eligible: hasRequired,
+    gated: false,
+    readiness,
+    mappedFeatures,
+    missingRequired,
+    status,
+    message: hasRequired
+      ? `All required features for ${diseaseKey} covered by extracted symptoms.`
+      : `Missing required features for ${diseaseKey}: ${missingRequired.join(', ')}. Symptom-only extraction is insufficient; clinical measurements required.`,
+  };
+}
 
 // Language display metadata
 const SUPPORTED_LANGUAGES = [
@@ -178,7 +349,8 @@ async function runMultilingualConsultation({
   patientData = {},
   vitals = null,
   synthesizeAudio = true,
-  userConfirmed = false
+  userConfirmed = false,
+  verifiedSymptoms = null // User-corrected/verified symptom set (overrides NLP extraction)
 }) {
   const trace = [];
   const startTs = Date.now();
@@ -219,9 +391,26 @@ async function runMultilingualConsultation({
   const validation = validate_clinical_entities(nlpResult);
   trace.push({ step: 'validate_clinical_entities', status: 'complete', detail: `Validated ${validation.validActiveSymptoms.length} active symptoms` });
 
-  // Step 4: Check if user confirmation is required (ambiguity or no confirmed symptoms)
-  const clarification = request_user_clarification(nlpResult.ambiguities);
-  if (clarification.required && !userConfirmed) {
+  // Step 4: Determine the symptom set to use.
+  // If user provided verified/corrected symptoms, use those. Otherwise use NLP extraction.
+  let activeSymptoms = validation.validActiveSymptoms;
+  let symptomSource = 'nlp_extraction';
+  let userCorrections = {};
+
+  if (verifiedSymptoms && Array.isArray(verifiedSymptoms)) {
+    activeSymptoms = verifiedSymptoms;
+    symptomSource = 'user_verified';
+    userCorrections = {
+      sourceOverride: true,
+      originalNlpSymptoms: validation.validActiveSymptoms,
+      userSymptoms: verifiedSymptoms,
+    };
+    trace.push({ step: 'user_verification', status: 'complete', detail: `Using user-verified symptoms: [${verifiedSymptoms.join(', ')}]` });
+  }
+
+  // Step 5: MANDATORY user confirmation gate.
+  // Disease assessment never runs without explicit patient confirmation of symptoms.
+  if (!userConfirmed) {
     return {
       success: true,
       status: 'REQUIRES_USER_CONFIRMATION',
@@ -232,17 +421,38 @@ async function runMultilingualConsultation({
       detectedLanguageName: nlpResult.detected_language_name,
       normalizedText: nlpResult.normalized_text,
       extractedEntities: nlpResult,
-      clarificationQuestions: clarification.questions,
-      trace
+      validation,
+      activeSymptoms,
+      negatedSymptoms: nlpResult.negated_symptoms,
+      historicalSymptoms: nlpResult.historical_symptoms,
+      clarificationQuestions: [
+        'Please review and confirm the extracted symptoms before clinical assessment.',
+        'You may edit, remove, or add symptoms, and correct duration/severity values.',
+      ],
+      trace,
     };
   }
 
-  // Step 5: Standardized Clinical Representation
-  const standardized = normalize_clinical_data(nlpResult);
+  // Step 6: Standardized Clinical Representation
+  const standardized = {
+    originalText: nlpResult.original_text,
+    detectedLanguage: nlpResult.detected_language,
+    normalizedLanguage: 'en',
+    normalizedText: nlpResult.normalized_text,
+    activeSymptoms,
+    negatedSymptoms: nlpResult.negated_symptoms || [],
+    historicalSymptoms: nlpResult.historical_symptoms || [],
+    medications: nlpResult.medications || [],
+    temporalContext: nlpResult.temporal_context || {},
+    ambiguities: nlpResult.ambiguities || [],
+    needsUserConfirmation: false,
+    symptomSource,
+    userCorrections,
+  };
 
-  // Step 6: Disease-Specific Assessment
+  // Step 7: Disease-Specific Assessment + Symptom→Feature Mapping (Task 4 readiness)
   trace.push({ step: 'run_disease_assessment', status: 'running', detail: 'Cross-referencing symptoms with Triage & Diagnostic models' });
-  const assessment = run_disease_assessment(patientData, standardized.activeSymptoms, vitals);
+  const assessment = run_disease_assessment(patientData, activeSymptoms, vitals);
   trace.push({ step: 'run_disease_assessment', status: 'complete', detail: `Triage: ${assessment.triage.triageLevel} | Top Diagnosis: ${assessment.diagnostic.primaryDiagnosis?.condition || 'Undetermined'}` });
 
   // Step 7: Medical Guidelines RAG Retrieval
@@ -263,6 +473,15 @@ async function runMultilingualConsultation({
     trace.push({ step: 'synthesize_speech', status: ttsResult.success ? 'complete' : 'failed', detail: ttsResult.audio_url || ttsResult.error });
   }
 
+  // Step 8: Symptom→Disease Feature Mapping (Task 4 readiness integration)
+  // Maps verified symptoms to disease-specific features for eligible models.
+  // Strictly NO symptom→Pima mapping. Gated diseases return ineligible status.
+  const featureMappings = {};
+  const eligibleDiseases = ['malaria', 'dengue', 'chikungunya', 'typhoid'];
+  for (const diseaseKey of eligibleDiseases) {
+    featureMappings[diseaseKey] = mapSymptomsToDiseaseFeatures(activeSymptoms, diseaseKey);
+  }
+
   // Final Guardrail Check
   const guardrail = guardrailAgent.analyze(assessment.triage, assessment.diagnostic, null);
 
@@ -276,13 +495,18 @@ async function runMultilingualConsultation({
     detectedLanguage: nlpResult.detected_language,
     detectedLanguageName: nlpResult.detected_language_name,
     normalizedText: nlpResult.normalized_text,
-    clinicalEntities: standardized,
+    clinicalEntities: {
+      ...standardized,
+      symptomSource,
+      userCorrections,
+    },
     assessment: {
       triage: assessment.triage,
       diagnostic: assessment.diagnostic,
       rag: ragResult,
       guardrail: guardrail
     },
+    featureMappings,
     localizedResponseText: localizedResponse,
     audioUrl: ttsResult?.audio_url || null,
     ttsMetadata: ttsResult?.success ? ttsResult : null,
@@ -301,6 +525,9 @@ module.exports = {
   request_user_clarification,
   normalize_clinical_data,
   map_disease_features,
+  mapSymptomsToDiseaseFeatures,
+  getModelReadiness,
+  isModelGated,
   run_disease_assessment,
   retrieve_clinical_guidelines,
   generate_multilingual_response,

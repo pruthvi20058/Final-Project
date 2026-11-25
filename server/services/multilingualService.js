@@ -1,6 +1,12 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
+// Translation credentials — loaded from environment, never hardcoded.
+// MYMEMORY_EMAIL: optional MyMemory translator contact email (higher rate limit).
+// TRANSLATION_PROVIDER: 'mymemory' | 'none' (fallback to dictionary only).
+const TRANSLATION_PROVIDER = process.env.TRANSLATION_PROVIDER || 'mymemory';
+const MYMEMORY_EMAIL = process.env.MYMEMORY_EMAIL || null;
+
 function executePythonScript(scriptName, payload) {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(__dirname, scriptName);
@@ -65,7 +71,9 @@ async function processMultilingualText(text, preferredLanguage = null) {
 
   return await executePythonScript('multilingualNlp.py', {
     text,
-    preferred_language: preferredLanguage
+    preferred_language: preferredLanguage,
+    translation_provider: TRANSLATION_PROVIDER,
+    mymemory_email: MYMEMORY_EMAIL
   });
 }
 
@@ -87,7 +95,9 @@ async function translateText(text, sourceLang = 'auto', targetLang = 'en') {
     action: 'translate',
     text,
     source_lang: sourceLang,
-    target_lang: targetLang
+    target_lang: targetLang,
+    translation_provider: TRANSLATION_PROVIDER,
+    mymemory_email: MYMEMORY_EMAIL
   });
 }
 

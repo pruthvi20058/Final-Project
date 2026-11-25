@@ -116,10 +116,28 @@
 - Emergency warning sign detection with urgent alert escalation
 - Mandatory medical safety disclaimer on every response
 
-### 🌐 Multilingual Voice NLP Assistant
+### 🌐 Multilingual Voice NLP Assistant (Task 5)
 - 10 Indian languages: Kannada, Hindi, Telugu, Tamil, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia
-- Browser Web Speech API + ElevenLabs neural TTS synthesis
-- Native script detection (Devanagari, Kannada, Tamil, etc.)
+- Browser Web Speech API + Edge-TTS neural TTS synthesis (Python fallback: gTTS)
+- Native script detection (Devanagari, Kannada, Tamil, Telugu, Malayalam, Bengali, Gurmukhi)
+- **7-step clinical workflow** with mandatory patient verification (Step 4)
+- Symptom extraction: name, duration, severity, negation, temporal context
+- Translation via environment-variable credentials (no hardcoded keys)
+- Symptom→disease feature mapping gated by Task 4 model readiness
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/nlp/languages` | `GET` | List supported languages |
+| `/api/nlp/detect-language` | `POST` | Detect input text language |
+| `/api/nlp/transcribe` | `POST` | Upload + transcribe voice audio |
+| `/api/nlp/process-text` | `POST` | Multilingual NLP entity extraction |
+| `/api/nlp/process-voice` | `POST` | Audio upload + transcribe + NLP |
+| `/api/nlp/synthesize-speech` | `POST` | Text-to-speech voice generation |
+| `/api/nlp/consultation` | `POST` | Agentic clinical assessment (gated on `userConfirmed`) |
+| `/api/nlp/verify-symptoms` | `POST` | **Task 5**: Submit verified symptoms + run assessment |
+| `/api/nlp/consultations` | `GET` | Retrieve consultations |
+| `/api/nlp/consultations/:id` | `GET` | Retrieve single consultation |
+| `/api/nlp/model-readiness/:disease` | `GET` | **Task 5**: Check Task 4 model readiness for a disease |
 
 ### 💊 Medicine Information Guide
 - 17-field clinical monograph per drug (composition, dosage, contraindications, interactions)

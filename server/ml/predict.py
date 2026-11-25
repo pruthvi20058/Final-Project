@@ -423,35 +423,10 @@ def main():
     disease = str(data.get("disease", "diabetes")).lower().strip()
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Typhoid Handler (Uses trained model or returns UNAVAILABLE)
-    if disease == "typhoid":
-        typhoid_model_p = os.path.join(script_dir, "models", "typhoid", "model.joblib")
-        if os.path.exists(typhoid_model_p):
-            sys.path.insert(0, os.path.join(script_dir, "common"))
-            from prediction_interface import predict_disease_case
-            res = predict_disease_case("typhoid", data)
-        else:
-            res = {
-                "status": "UNAVAILABLE",
-                "disease": "typhoid",
-                "modelName": "MediAgent Typhoid Classifier (Guarded)",
-                "modelVersion": "N/A - Offline",
-                "message": "Typhoid machine learning prediction is currently unavailable. No non-synthetic, clinically validated dataset has been trained yet. Please upload a dataset in the Dataset Studio to train this module.",
-                "datasetProvenance": "TyphoDx-BD (Mendeley 10.17632/m9pnvv2vpv.1) / Custom Upload",
-                "disclaimer": "Diagnostic ML prediction is guarded until authenticated clinical trial data is provided."
-            }
-        print(json.dumps(res))
-        sys.exit(0)
-
-    if disease == "dengue":
-        res = predict_dengue(data, script_dir)
-    elif disease == "malaria":
-        res = predict_malaria(data, script_dir)
-    elif disease == "chikungunya":
-        res = predict_chikungunya(data, script_dir)
-    else:
-        # Default diabetes (preserves 100% backward compatibility)
-        res = predict_diabetes(data, script_dir)
+    # Route ALL diseases through the unified prediction interface with strict feature validation
+    sys.path.insert(0, os.path.join(script_dir, "common"))
+    from prediction_interface import predict_disease_case
+    res = predict_disease_case(disease, data)
 
     print(json.dumps(res))
 
