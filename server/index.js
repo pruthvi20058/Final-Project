@@ -194,6 +194,167 @@ app.get('/api/stats', authenticateToken, (req, res) => {
   }
 });
 
+// Evaluation metrics — protected. Returns NOT_EVALUATED when no real results exist.
+app.get('/api/evaluation/metrics', authenticateToken, (req, res) => {
+  try {
+    const db = getDb();
+    let evalRows;
+    try {
+      evalRows = db.prepare('SELECT * FROM evaluation_results ORDER BY created_at DESC LIMIT 1').all();
+    } catch {
+      evalRows = [];
+    }
+
+    if (!evalRows || evalRows.length === 0) {
+      return res.json({
+        success: true,
+        metrics: null,
+        status: 'NOT_EVALUATED',
+        message: 'No model evaluation has been performed. Metrics are unavailable until a reproducible evaluation is executed against a held-out test set.'
+      });
+    }
+
+    const latest = evalRows[0];
+    res.json({
+      success: true,
+      metrics: latest.metrics ? (typeof latest.metrics === 'string' ? JSON.parse(latest.metrics) : latest.metrics) : null,
+      status: 'AVAILABLE',
+      message: 'Evaluation metrics from most recent reproducible evaluation run.'
+    });
+  } catch (err) {
+    console.error('Error in /api/evaluation/metrics:', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load evaluation metrics' }
+    });
+  }
+});
+
+// System status — protected. Returns real health checks, never static "Online" claims.
+app.get('/api/system/status', authenticateToken, (req, res) => {
+  try {
+    const checks = [];
+
+    checks.push({
+      name: 'Express Backend API',
+      status: 'ONLINE',
+      detail: 'HTTP server accepting requests'
+    });
+
+    let dbStatus = 'UNAVAILABLE';
+    let dbDetail = 'Database connection could not be established';
+    try {
+      const db = getDb();
+      db.prepare('SELECT 1').run();
+      dbStatus = 'ONLINE';
+      dbDetail = 'SQLite database connection verified';
+    } catch {
+      dbStatus = 'UNAVAILABLE';
+      dbDetail = 'SQLite database connection failed';
+    }
+    checks.push({
+      name: 'SQLite Database',
+      status: dbStatus,
+      detail: dbDetail
+    });
+
+    let ocrStatus = 'UNAVAILABLE';
+    let ocrDetail = 'OCR engine not available';
+    try {
+      require('tesseract.js');
+      ocrStatus = 'ONLINE';
+      ocrDetail = 'Tesseract OCR module loaded';
+    } catch {
+      ocrStatus = 'UNAVAILABLE';
+      ocrDetail = 'Tesseract OCR module not available';
+    }
+    checks.push({
+      name: 'OCR Engine (Tesseract)',
+      status: ocrStatus,
+      detail: ocrDetail
+    });
+
+    let pdfStatus = 'UNAVAILABLE';
+    let pdfDetail = 'PDF parser not available';
+    try {
+      require('pdf-parse');
+      pdfStatus = 'ONLINE';
+      pdfDetail = 'pdf-parse module loaded';
+    } catch {
+      pdfStatus = 'UNAVAILABLE';
+      pdfDetail = 'pdf-parse module not available';
+    }
+    checks.push({
+      name: 'PDF Text Extraction',
+      status: pdfStatus,
+      detail: pdfDetail
+    });
+
+    let mlStatus = 'UNAVAILABLE';
+    let mlDetail = 'No ML model artifacts found';
+    try {
+      const modelPath = require('path').join(__dirname, 'ml', 'models', 'diabetes', 'model.joblib');
+      if (require('fs').existsSync(modelPath)) {
+        mlStatus = 'ONLINE';
+        mlDetail = 'Pima diabetes model artifact present';
+      } else {
+        mlStatus = 'UNAVAILABLE';
+        mlDetail = 'Pima diabetes model artifact missing';
+      }
+    } catch {
+      mlStatus = 'UNAVAILABLE';
+      mlDetail = 'ML model check failed';
+    }
+    checks.push({
+      name: 'ML Model (Pima Diabetes)',
+      status: mlStatus,
+      detail: mlDetail
+    });
+
+    let ragStatus = 'UNAVAILABLE';
+    let ragDetail = 'RAG knowledge base not available';
+    try {
+      const { loadKnowledgeSources } = require('./services/ragService');
+      const sources = loadKnowledgeSources();
+      if (sources && sources.length > 0) {
+        ragStatus = 'ONLINE';
+        ragDetail = `RAG knowledge base loaded with ${sources.length} source(s)`;
+      } else {
+        ragStatus = 'UNAVAILABLE';
+        ragDetail = 'RAG knowledge base has no sources';
+      }
+    } catch {
+      ragStatus = 'UNAVAILABLE';
+      ragDetail = 'RAG service check failed';
+    }
+    checks.push({
+      name: 'RAG Knowledge Base',
+      status: ragStatus,
+      detail: ragDetail
+    });
+
+    const llmConfigured = Boolean(process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+    checks.push({
+      name: 'LLM Reasoning Provider',
+      status: llmConfigured ? 'CONFIGURED' : 'UNAVAILABLE',
+      detail: llmConfigured ? 'LLM API key present in environment' : 'No LLM API key configured'
+    });
+
+    res.json({
+      success: true,
+      status: 'OK',
+      checks,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error in /api/system/status:', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load system status' }
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Global error handler — never expose stack traces to clients
 // ---------------------------------------------------------------------------
