@@ -7,12 +7,23 @@ import { reportService } from '../services/api';
 
 export default function Dashboard({ onNavigate, doctor }) {
   const [reports, setReports] = useState([]);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadReports() {
-      const data = await reportService.list();
-      if (mounted) setReports(data || []);
+      try {
+        const data = await reportService.list();
+        if (mounted) {
+          setReports(data || []);
+          setErrorMsg(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+          setReports([]);
+        }
+      }
     }
     loadReports();
     return () => { mounted = false; };
@@ -52,6 +63,12 @@ export default function Dashboard({ onNavigate, doctor }) {
           </button>
         </div>
       </div>
+
+      {errorMsg && (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 20, color: '#fca5a5' }}>
+          <strong>Unable to load reports:</strong> {errorMsg}
+        </div>
+      )}
 
       <SafetyDisclaimer compact />
 

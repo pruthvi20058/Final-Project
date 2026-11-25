@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import StatusBadge from '../../components/StatusBadge';
-import { evidenceService, reportService, FALLBACK_EVIDENCE, FALLBACK_REPORT } from '../../services/api';
+import { evidenceService, reportService } from '../../services/api';
 
 export default function EvidencePage({ predictionId, reportId = 'REP-9001', onNavigate }) {
-  const [evidence, setEvidence] = useState(FALLBACK_EVIDENCE);
-  const [report, setReport] = useState(FALLBACK_REPORT);
+  const [evidence, setEvidence] = useState(null);
+  const [report, setReport] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadEvidence() {
       try {
+        setErrorMsg(null);
         const activeId = reportId || (predictionId ? predictionId.replace('PRED-', '') : 'REP-9001');
         const r = await reportService.getById(activeId);
         const data = await evidenceService.getEvidence(r?.id || activeId);
@@ -18,13 +20,28 @@ export default function EvidencePage({ predictionId, reportId = 'REP-9001', onNa
           if (r) setReport(r);
           setEvidence(data);
         }
-      } catch {
-        // preserve fallback
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+        }
       }
     }
     loadEvidence();
     return () => { mounted = false; };
   }, [predictionId, reportId]);
+
+  if (errorMsg) {
+    return (
+      <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔌</div>
+        <h3 style={{ color: '#ef4444', marginBottom: 12 }}>Unable to load medical evidence</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{errorMsg}</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          Retry ↻
+        </button>
+      </div>
+    );
+  }
 
   if (!evidence || !report) {
     return (

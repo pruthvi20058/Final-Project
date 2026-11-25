@@ -2,24 +2,25 @@ import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import StatusBadge from '../../components/StatusBadge';
-import { riskService, reportService, FALLBACK_RISK, FALLBACK_REPORT } from '../../services/api';
+import { riskService, reportService } from '../../services/api';
 
 export default function RiskUncertaintyPage({ reportId = 'REP-9001', onNavigate, isAbstain = false }) {
-  const [data, setData] = useState(FALLBACK_RISK);
-  const [report, setReport] = useState(FALLBACK_REPORT);
-  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [showAbstainOnly, setShowAbstainOnly] = useState(isAbstain);
 
   async function loadRisk() {
     try {
+      setLoadError(null);
       const r = await reportService.getById(reportId || 'REP-9001');
       const res = await riskService.getRisk(r?.id || reportId || 'REP-9001');
       if (r) setReport(r);
       if (res) setData(res);
       setLoading(false);
     } catch (err) {
-      // keep fallback
+      setLoadError(err.message || 'Unable to connect to the MediAgent server. Please try again.');
       setLoading(false);
     }
   }

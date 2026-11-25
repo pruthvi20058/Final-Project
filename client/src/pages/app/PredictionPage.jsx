@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import ProbabilityBar from '../../components/ProbabilityBar';
-import { predictionService, reportService, FALLBACK_PREDICTION, FALLBACK_REPORT } from '../../services/api';
+import { predictionService, reportService } from '../../services/api';
 
 const DISEASES = [
   { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
@@ -16,9 +16,9 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'SUCCESS' | 'ERROR'
-  const [pred, setPred] = useState(FALLBACK_PREDICTION);
-  const [report, setReport] = useState(FALLBACK_REPORT);
-  const [readiness, setReadiness] = useState(FALLBACK_REPORT.modelReadiness);
+  const [pred, setPred] = useState(null);
+  const [report, setReport] = useState(null);
+  const [readiness, setReadiness] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const loadData = async (targetDisease = selectedDisease) => {
@@ -28,10 +28,13 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
       try {
         rep = await reportService.getById(reportId || 'REP-9001', targetDisease);
       } catch (repErr) {
-        rep = FALLBACK_REPORT;
+        setPageState('ERROR');
+        setErrorMsg(repErr.message || 'Unable to load report. Please verify your connection.');
+        setLoading(false);
+        return;
       }
 
-      setReport(rep || FALLBACK_REPORT);
+      setReport(rep);
 
       // Auto-detect disease if targetDisease not explicitly chosen
       let activeDisease = targetDisease;
@@ -48,16 +51,11 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         setSelectedDisease('diabetes');
       }
 
-      const repReadiness = (rep && rep.modelReadiness) || FALLBACK_REPORT.modelReadiness;
+      const repReadiness = (rep && rep.modelReadiness) || null;
       setReadiness(repReadiness);
 
       // Step 2: Query prediction endpoint for this verified report and disease
-      let predRes = null;
-      try {
-        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
-      } catch {
-        predRes = FALLBACK_PREDICTION;
-      }
+      let predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
 
       // If prediction is missing or insufficient, trigger active on-demand screening
       if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && rep?.id) {
@@ -84,15 +82,15 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         setReadiness(predRes.modelReadiness || repReadiness);
         setPageState('INSUFFICIENT_DATA');
       } else {
-        setPred(predRes || FALLBACK_PREDICTION);
-        setPageState('SUCCESS');
+        setPred(predRes);
+        setPageState('ERROR');
+        setErrorMsg('Prediction could not be retrieved from the backend server.');
       }
       setLoading(false);
     } catch (err) {
       console.error('[PredictionPage] Data retrieval error:', err);
-      setPred(FALLBACK_PREDICTION);
-      setReport(FALLBACK_REPORT);
-      setPageState('SUCCESS');
+      setPageState('ERROR');
+      setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
       setLoading(false);
     }
   };
