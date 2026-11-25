@@ -15,7 +15,7 @@ const DISEASES = [
 export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'SUCCESS' | 'ERROR'
+  const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'VERIFICATION_REQUIRED' | 'SUCCESS' | 'ERROR'
   const [pred, setPred] = useState(null);
   const [report, setReport] = useState(null);
   const [readiness, setReadiness] = useState(null);
@@ -56,6 +56,16 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
 
       // Step 2: Query prediction endpoint for this verified report and disease
       let predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
+
+      // Handle verification-required status — prediction cannot be generated before backend verification
+      if (predRes && predRes.status === 'VERIFICATION_REQUIRED') {
+        setPred(predRes);
+        setReadiness(predRes.modelReadiness || repReadiness);
+        setPageState('VERIFICATION_REQUIRED');
+        setErrorMsg(predRes.message || 'Report must be verified before prediction can be generated.');
+        setLoading(false);
+        return;
+      }
 
       // If prediction is missing or insufficient, trigger active on-demand screening
       if ((!predRes || predRes.status === 'INSUFFICIENT_DATA' || predRes.status === 'PREDICTION_NOT_AVAILABLE') && rep?.id) {
@@ -150,6 +160,30 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
             </button>
             <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
               Go to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // CASE F: VERIFICATION REQUIRED — No prediction before backend verification
+  if (pageState === 'VERIFICATION_REQUIRED') {
+    return (
+      <div className="fade-in">
+        <DemoBanner />
+        <div style={{ padding: 40, textAlign: 'center', maxWidth: 640, margin: '40px auto', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
+          <h3 style={{ color: '#f59e0b', marginBottom: 12, fontSize: '1.4rem' }}>Verification Required</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: '0.92rem' }}>
+            {errorMsg || 'Laboratory values must be verified before a clinical prediction can be generated.'}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={() => onNavigate('extraction')}>
+              📄 Complete Lab Value Verification →
+            </button>
+            <button className="btn btn-secondary" onClick={() => onNavigate('reports')}>
+              📋 View All Reports
             </button>
           </div>
         </div>

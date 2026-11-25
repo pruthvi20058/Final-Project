@@ -10,7 +10,8 @@ const {
   savePredictionRecord,
   getReportRecord,
   getPredictionRecord,
-  getAllReportRecords
+  getAllReportRecords,
+  invalidatePredictionForReport
 } = require('../db/database');
 const { extractTextFromFile, parseLabValuesFromText } = require('../services/reportParser');
 const { generatePredictionForReport, runDiseaseInference } = require('../services/predictionService');
@@ -34,9 +35,11 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 } // 15 MB max
 });
 
-// Helper: check if the authenticated user owns the report (or report is unowned legacy data)
+// Helper: check if the authenticated user owns the report
+// Legacy unowned reports (no created_by) are NOT accessible to any user.
+// Only the doctor who created the report (created_by === userId) may access it.
 function reportBelongsToUser(report, userId) {
-  if (!report || !report.created_by) return true; // legacy unowned data — allow access
+  if (!report || !report.created_by || !userId) return false;
   return report.created_by === userId;
 }
 
@@ -102,36 +105,11 @@ router.post('/upload', singleFileUpload, async (req, res) => {
       { tsv: extractionResult.tsv }
     );
 
-    // Save raw debug OCR output to server/debug/ocr-debug-<reportId>.txt
-    try {
-      const debugDir = path.join(__dirname, '..', 'debug');
-      if (!fs.existsSync(debugDir)) {
-        fs.mkdirSync(debugDir, { recursive: true });
-      }
-      const debugFilePath = path.join(debugDir, `ocr-debug-${reportId}.txt`);
-      fs.writeFileSync(debugFilePath, rawOcrText, 'utf8');
-    } catch (dErr) {
-      console.warn('[Upload] Failed to save debug OCR file:', dErr.message);
-    }
-
     const ocrLinesCount = rawOcrText ? rawOcrText.split(/\r?\n/).length : 0;
     const candidatesCount = labResults.length + discardedCandidates.length;
 
-    console.log(`\n==================================================`);
-    console.log(`FILE: ${file.originalname}`);
-    console.log(`MIME: ${file.mimetype}`);
-    console.log(`SIZE: ${file.size} bytes`);
-    console.log(`DIMENSIONS: ${JSON.stringify(extractionResult.dimensions || {})}`);
-    console.log(`OCR ENGINE USED: ${extractionResult.method}`);
-    console.log(`OCR RAW TEXT LENGTH: ${rawOcrText.length}`);
-    console.log(`OCR LINE COUNT: ${ocrLinesCount}`);
-    console.log(`OCR SAMPLE (First 2000 chars):\n${rawOcrText.slice(0, 2000)}`);
-    console.log(`OCR CANDIDATES: ${candidatesCount}`);
-    console.log(`PARSED LAB RESULTS: ${labResults.length}`);
-    console.log(`REJECTED: ${discardedCandidates.length}`);
-    console.log(`REJECTION REASONS:`, JSON.stringify(discardedCandidates, null, 2));
-    console.log(`PARSED RESULTS:`, JSON.stringify(labResults.map(r => `${r.rawName} = ${r.value} ${r.unit}`), null, 2));
-    console.log(`==================================================\n`);
+    // Non-sensitive diagnostics only — never log raw OCR text, patient names, or lab values
+    console.log(`\n[Upload] Report ${reportId}: method=${extractionResult.method} textLen=${rawOcrText.length} lines=${ocrLinesCount} results=${labResults.length} rejected=${discardedCandidates.length}\n`);
 
     // Disease Detection from User Form, Filename, Symptoms, or Extracted Test Results
     let detectedDisease = (req.body.disease || '').toLowerCase().trim();
@@ -260,8 +238,7 @@ router.get('/:id/extraction-debug', (req, res) => {
       success: true,
       reportId: report.id,
       originalFilename: report.original_filename || report.filename,
-      rawOcrText: rawText,
-      rawText: rawText,
+      rawOcrTextLength: rawText ? rawText.length : 0,
       totalExtracted: parsed.results ? parsed.results.length : 0,
       ocrWords: parsed.ocrWords || [],
       detectedTables: parsed.detectedTables || [],
@@ -332,10 +309,24 @@ router.get('/:id/prediction', async (req, res) => {
       });
     }
 
+    // MANDATORY VERIFICATION CHECK: No prediction pathway for unverified reports
+    if (report.status !== 'VERIFIED') {
+      return res.status(200).json({
+        success: true,
+        status: 'VERIFICATION_REQUIRED',
+        report: { id: report.id, status: report.status },
+        prediction: null,
+        modelReadiness: null,
+        message: 'Report must be verified before predictions can be generated or retrieved. Complete lab value verification first.'
+      });
+    }
+
     const requestedDisease = (req.query.disease || report.disease || 'diabetes').toLowerCase();
     const readiness = computeDiseaseModelReadiness(report, requestedDisease);
     let pred = getPredictionRecord(req.params.id);
 
+    // Never auto-generate predictions on GET. Only return stored predictions.
+    // If no stored prediction exists, return PREDICTION_NOT_AVAILABLE.
     const predDisease = (pred && (pred.disease || (pred.modelInfo && pred.modelInfo.disease))) ? (pred.disease || pred.modelInfo.disease).toLowerCase() : '';
     const mName = (pred && pred.modelName ? pred.modelName : '').toLowerCase();
 
@@ -345,23 +336,11 @@ router.get('/:id/prediction', async (req, res) => {
       (requestedDisease === 'diabetes' && !mName.includes('diabetes'))
     ));
 
-    // If report is READY and (no prediction is saved OR disease mismatch OR stored prediction has 0 probability), automatically generate & persist it
-    if ((!pred || diseaseMismatch || pred.probability === 0) && readiness.status === 'READY') {
-      try {
-        const autoPred = await generatePredictionForReport(report, readiness, requestedDisease);
-        if (autoPred && (autoPred.status === 'SUCCESS' || autoPred.status === 'UNAVAILABLE')) {
-          savePredictionRecord(autoPred);
-          pred = autoPred;
-        }
-      } catch (autoErr) {
-        console.warn('[ReportsRoute] Auto-prediction generation failed on GET:', autoErr.message);
-      }
-    } else if (diseaseMismatch) {
-      // Stored prediction belongs to a different disease and current disease is not ready
+    if (diseaseMismatch) {
       pred = null;
     }
 
-    // Case D: Report exists and valid prediction persisted
+    // Case D: Report exists and valid prediction persisted (never auto-generated)
     if (pred) {
       const isPositive = pred.predictedClass && (pred.predictedClass.includes('Positive') || pred.predictedClass.includes('Elevated') || pred.predictedClass.includes('Confirmed') || (typeof pred.probability === 'number' && pred.probability >= 0.5));
       const posPct = typeof pred.displayProbabilityPct === 'number'
@@ -505,6 +484,18 @@ router.post('/:id/predict', async (req, res) => {
       });
     }
 
+    // MANDATORY VERIFICATION CHECK: No prediction pathway for unverified reports
+    if (report.status !== 'VERIFIED') {
+      return res.status(200).json({
+        success: false,
+        status: 'VERIFICATION_REQUIRED',
+        report: { id: report.id, status: report.status },
+        prediction: null,
+        modelReadiness: null,
+        message: 'Report must be verified before predictions can be generated. Complete lab value verification first.'
+      });
+    }
+
     const requestedDisease = (req.body?.disease || req.query?.disease || report.disease || 'diabetes').toLowerCase().trim();
     const readiness = computeDiseaseModelReadiness(report, requestedDisease);
 
@@ -569,12 +560,20 @@ router.get('/dataset-provenance', (req, res) => {
 
 // 8. PUT /api/reports/:id/lab-results — User verification & lab result edit
 router.put('/:id/lab-results', async (req, res) => {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const userId = req.user && req.user.id ? req.user.id : null;
+
   try {
-    const { labResults } = req.body;
-    if (!Array.isArray(labResults)) {
+    const { labResults, disease: requestedDiseaseOverride } = req.body;
+
+    if (!Array.isArray(labResults) || labResults.length === 0) {
       return res.status(400).json({
         success: false,
-        error: { code: 'INVALID_PAYLOAD', message: 'labResults must be an array.' }
+        error: {
+          code: 'INVALID_PAYLOAD',
+          message: 'labResults must be a non-empty array of laboratory parameters.'
+        }
       });
     }
 
@@ -593,55 +592,124 @@ router.put('/:id/lab-results', async (req, res) => {
       });
     }
 
-    const db = getDb();
-    const now = new Date().toISOString();
-    const userId = req.user && req.user.id ? req.user.id : null;
+    // Validate each laboratory parameter
+    const seenNormalizedNames = new Set();
+    const validatedResults = [];
 
-    // Track original values before user changes, flag user-modified values
-    const validatedResults = labResults.map(l => {
-      const result = { ...l, validatedByUser: true, validatedAt: now, validatedBy: userId };
-      if (l.originalValue !== undefined && l.originalValue !== null && l.originalValue !== l.value) {
-        result.originalValue = l.originalValue;
-      } else if (l.value !== undefined) {
-        result.originalValue = l.value;
-      }
-      return result;
-    });
-    saveLabResultsRecord(req.params.id, validatedResults);
+    for (let i = 0; i < labResults.length; i++) {
+      const item = labResults[i];
 
-    // Synchronize demographics if user verified or added an age parameter
-    const ageItem = validatedResults.find(l => {
-      const rName = (l.rawName || l.testName || l.raw_name || l.test_name || '').toLowerCase();
-      const nName = (l.normalizedName || l.normalized_name || '').toLowerCase();
-      return nName === 'age' || nName.startsWith('age') || rName.startsWith('age') || /\bage\b/i.test(rName);
-    });
-    if (ageItem) {
-      let parsedAge = parseInt(ageItem.value, 10);
-      if (isNaN(parsedAge)) {
-        const m = (ageItem.rawName || ageItem.testName || '').match(/\bage\D*(\d{1,3})/i);
-        if (m) parsedAge = parseInt(m[1], 10);
-      }
-      if (!isNaN(parsedAge) && parsedAge >= 1 && parsedAge <= 120) {
-        try {
-          let currDemo = {};
-          if (report.patientDemographics) {
-            currDemo = typeof report.patientDemographics === 'string' ? JSON.parse(report.patientDemographics) : { ...report.patientDemographics };
-          } else if (report.demographics) {
-            currDemo = typeof report.demographics === 'string' ? JSON.parse(report.demographics) : { ...report.demographics };
+      if (!item.testName && !item.rawName && !item.normalizedName) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PARAMETER',
+            message: `Parameter at index ${i} is missing a test name.`
           }
-          currDemo.age = parsedAge;
-          db.prepare('UPDATE reports SET demographics = ? WHERE id = ?').run(JSON.stringify(currDemo), req.params.id);
-        } catch (demoSyncErr) {
-          console.warn('[ReportsRoute] Failed to sync demographics age:', demoSyncErr.message);
-        }
+        });
       }
+
+      const testName = item.testName || item.rawName || item.normalizedName || 'Lab Test';
+      const normalizedName = item.normalizedName || testName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+      if (seenNormalizedNames.has(normalizedName)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'DUPLICATE_PARAMETER',
+            message: `Duplicate laboratory parameter '${testName}' (normalized: '${normalizedName}'). Each parameter may only appear once.`
+          }
+        });
+      }
+      seenNormalizedNames.add(normalizedName);
+
+      if (item.value === undefined || item.value === null) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_VALUE',
+            message: `Parameter '${testName}' is missing a numeric value.`
+          }
+        });
+      }
+
+      const numVal = parseFloat(item.value);
+      if (isNaN(numVal)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_VALUE',
+            message: `Parameter '${testName}' has an invalid numeric value: '${item.value}'.`
+          }
+        });
+      }
+
+      if (!isFinite(numVal)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_VALUE',
+            message: `Parameter '${testName}' has a non-finite value.`
+          }
+        });
+      }
+
+      const units = item.units || item.unit || '';
+      if (!units || units.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_UNITS',
+            message: `Parameter '${testName}' is missing units.`
+          }
+        });
+      }
+
+      const originalValue = item.originalValue !== undefined && item.originalValue !== null
+        ? item.originalValue
+        : item.value;
+
+      validatedResults.push({
+        ...item,
+        testName,
+        rawName: item.rawName || item.testName || testName,
+        normalizedName,
+        value: numVal,
+        originalValue,
+        units: units.trim(),
+        referenceRange: item.referenceRange || item.reference_range || '',
+        status: item.status || 'NORMAL',
+        quality: item.quality || 'VALID',
+        validationFlags: item.validationFlags || [],
+        confidence: item.confidence !== undefined ? item.confidence : 95.0,
+        sourceLocation: item.sourceLocation || item.source_location || null,
+        validatedByUser: true,
+        validatedAt: now,
+        validatedBy: userId
+      });
     }
 
-    // Mark report as VERIFIED — only verified values may enter the prediction pipeline
-    db.prepare('UPDATE reports SET status = ?, verification_timestamp = ?, verified_by = ? WHERE id = ?')
-      .run('VERIFIED', now, userId, req.params.id);
+    const previouslyVerified = report.status === 'VERIFIED';
+    const valuesChanged = previouslyVerified && validatedResults.some(lr => {
+      const original = lr.originalValue !== undefined && lr.originalValue !== null ? lr.originalValue : lr.value;
+      return original !== lr.value;
+    });
+    const tx = db.transaction(() => {
+      saveLabResultsRecord(req.params.id, validatedResults);
 
-    const requestedDisease = (req.body?.disease || req.query?.disease || report.disease || 'diabetes').toLowerCase().trim();
+      if (valuesChanged) {
+        db.prepare('UPDATE reports SET status = ?, verification_timestamp = NULL, verified_by = NULL WHERE id = ?')
+          .run('UPLOADED', req.params.id);
+        invalidatePredictionForReport(req.params.id);
+      } else {
+        db.prepare('UPDATE reports SET status = ?, verification_timestamp = ?, verified_by = ? WHERE id = ?')
+          .run('VERIFIED', now, userId, req.params.id);
+      }
+    });
+
+    tx();
+
+    const requestedDisease = (requestedDiseaseOverride || report.disease || 'diabetes').toLowerCase().trim();
     const updatedReport = getReportRecord(req.params.id);
     const updatedReadiness = computeDiseaseModelReadiness(updatedReport, requestedDisease);
     if (requestedDisease === 'diabetes') {
@@ -650,15 +718,20 @@ router.put('/:id/lab-results', async (req, res) => {
 
     // Only generate prediction AFTER verification — confirmed values only enter ML pipeline
     let updatedPrediction = null;
-    if (updatedReadiness.status === 'READY') {
+    if (updatedReport.status === 'VERIFIED' && updatedReadiness.status === 'READY') {
       updatedPrediction = await generatePredictionForReport(updatedReport, updatedReadiness, requestedDisease);
       if (updatedPrediction && updatedPrediction.status === 'SUCCESS') {
         savePredictionRecord(updatedPrediction);
       }
-    } else {
+    } else if (updatedReport.status === 'VERIFIED') {
       updatedPrediction = {
         status: updatedReadiness.status,
         message: `Prediction gated: ${updatedReadiness.status}. Required features missing: ${(updatedReadiness.missingFeatures || []).join(', ')}`
+      };
+    } else {
+      updatedPrediction = {
+        status: 'VERIFICATION_RESET',
+        message: 'Laboratory values were modified after previous verification. Report status reset to UPLOADED. Re-verification required before prediction.'
       };
     }
 
@@ -670,8 +743,10 @@ router.put('/:id/lab-results', async (req, res) => {
       report: updatedReport,
       modelReadiness: updatedReadiness,
       prediction: updatedPrediction,
-      verificationStatus: 'VERIFIED',
-      message: 'Report verified. Prediction generated from confirmed values only.'
+      verificationStatus: updatedReport.status,
+      message: valuesChanged
+        ? 'Values updated. Previous prediction invalidated. Re-verification required.'
+        : 'Report verified. Prediction generated from confirmed values only.'
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -718,44 +793,24 @@ router.get('/:id/xai', (req, res) => {
       (report.labResults || []).some(l => /typhoid|widal|salmonella/i.test(l.rawName || l.testName || '')) ||
       (report.symptoms && /typhoid|enteric|step-ladder/i.test(Array.isArray(report.symptoms) ? report.symptoms.join(' ') : report.symptoms));
 
-    let defaultSummary = requestedDisease && requestedDisease !== 'diabetes'
-      ? `SHAP explanations for ${requestedDisease} are based on clinical disease parameters and serology.`
-      : 'SHAP explanations require verified canonical model features to be present for calculation.';
+    let defaultSummary = 'SHAP explanations require verified canonical model features to be present for calculation.';
 
     if (shapList.length === 0) {
-      if (isChikungunya) {
-        defaultSummary = 'Multi-Factor Clinical Attribution identifying Anti-CHIKV IgM Serology (+45.0%), Severe Symmetrical Polyarthralgia (+28.0%), and Acute Leukopenia (+12.0%) as primary diagnostic drivers for Chikungunya Virus Disease.';
-        shapList = [
-          { feature: 'anti_chikv_igm', clinicalName: 'Anti-CHIKV IgM ELISA Serology', value: 'Positive / High Index', unit: 'Index', shapValue: 0.45, impact: 'positive' },
-          { feature: 'polyarthralgia', clinicalName: 'Severe Bilateral Polyarthralgia', value: 'Present', unit: 'symptom', shapValue: 0.28, impact: 'positive' },
-          { feature: 'sudden_fever', clinicalName: 'Sudden High Febrile Spike (103°F)', value: 'Present', unit: 'symptom', shapValue: 0.18, impact: 'positive' },
-          { feature: 'leukopenia', clinicalName: 'Leukopenia (WBC < 4,000 cells/µL)', value: '3400', unit: 'cells/µL', shapValue: 0.12, impact: 'positive' },
-          { feature: 'crp_synovitis', clinicalName: 'Elevated C-Reactive Protein (CRP)', value: '42.5', unit: 'mg/L', shapValue: 0.08, impact: 'positive' },
-          { feature: 'preserved_platelets', clinicalName: 'Preserved Platelet Count (Rules out Dengue shock)', value: '165000', unit: 'cells/µL', shapValue: -0.15, impact: 'negative' }
-        ];
-      } else if (isDengue) {
-        defaultSummary = 'Feature attribution identifies Dengue NS1 Antigen (+52.0%) and Thrombocytopenia (+34.0%) as primary risk factors for Dengue Infection.';
-        shapList = [
-          { feature: 'ns1_antigen', clinicalName: 'Dengue NS1 Antigen', value: 'Positive', unit: 'ratio', shapValue: 0.52, impact: 'positive' },
-          { feature: 'thrombocytopenia', clinicalName: 'Severe Thrombocytopenia (<100,000)', value: '65000', unit: 'cells/µL', shapValue: 0.34, impact: 'positive' },
-          { feature: 'retro_orbital', clinicalName: 'Retro-orbital Headache', value: 'Present', unit: 'symptom', shapValue: 0.16, impact: 'positive' }
-        ];
-      } else if (isMalaria) {
-        defaultSummary = 'Feature attribution identifies Peripheral Smear Malarial Parasite (+58.0%) and Periodic Rigors (+28.0%) as primary indicators for Malaria.';
-        shapList = [
-          { feature: 'smear_mp', clinicalName: 'Peripheral Blood Smear (Plasmodium Ring Forms)', value: 'Detected', unit: 'smear', shapValue: 0.58, impact: 'positive' },
-          { feature: 'cyclical_chills', clinicalName: 'Cyclical Chills & Shaking Rigors', value: 'Present', unit: 'symptom', shapValue: 0.28, impact: 'positive' },
-          { feature: 'hemolytic_anemia', clinicalName: 'Hemolytic Anemia (Hb < 11 g/dL)', value: '9.8', unit: 'g/dL', shapValue: 0.14, impact: 'positive' }
-        ];
-      } else if (isTyphoid) {
-        defaultSummary = 'Feature attribution identifies Salmonella Blood Culture (+56.0%), Widal Diagnostic Titers (+32.0%), and Step-ladder Pyrexia (+18.0%) as primary indicators for Typhoid (Enteric Fever).';
-        shapList = [
-          { feature: 'blood_culture', clinicalName: 'Blood Culture (S. Typhi)', value: 'Positive', unit: 'culture', shapValue: 0.56, impact: 'positive' },
-          { feature: 'widal_to', clinicalName: 'Widal TO Antigen Titer (≥ 1:160)', value: '1:320', unit: 'titer', shapValue: 0.32, impact: 'positive' },
-          { feature: 'step_ladder_fever', clinicalName: 'Step-ladder Febrile Pattern', value: 'Present', unit: 'symptom', shapValue: 0.18, impact: 'positive' },
-          { feature: 'leukopenia', clinicalName: 'Relative Bradycardia / Leukopenia', value: 'Present', unit: 'sign', shapValue: 0.12, impact: 'positive' }
-        ];
-      }
+      return res.status(200).json({
+        success: true,
+        xai: {
+          predictionId: pred ? pred.id : `PRED-${report.id}`,
+          reportId: report.id,
+          status: 'XAI_UNAVAILABLE',
+          shapSummaryText: 'Genuine SHAP feature attributions are unavailable for this report. No model-derived explanations were computed.',
+          featureImportance: [],
+          topContributingFactors: [],
+          supportingFactors: [],
+          factorsReducingConfidence: [],
+          features: [],
+          baseValue: 0
+        }
+      });
     }
 
     const featureImportance = shapList.map(item => ({
@@ -784,10 +839,8 @@ router.get('/:id/xai', (req, res) => {
           : defaultSummary,
         featureImportance,
         topContributingFactors: topContributingFactors.length > 0 ? topContributingFactors : ['No high-positive risk factors detected.'],
-        supportingFactors: isChikungunya
-          ? ['CDC Arboviral Disease Diagnosis Guidance', 'WHO Guidelines for Clinical Management of Chikungunya']
-          : ['Authoritative LinearExplainer baseline model.'],
-        factorsReducingConfidence: factorsReducingConfidence.length > 0 ? factorsReducingConfidence : ['No significant risk-reducing factors detected.'],
+        supportingFactors: [],
+        factorsReducingConfidence: factorsReducingConfidence.length > 0 ? factorsReducingConfidence : [],
         features: shapList,
         baseValue: pred && pred.modelInfo ? pred.modelInfo.baseValue || 0 : 0
       }

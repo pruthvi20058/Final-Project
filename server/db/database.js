@@ -701,6 +701,20 @@ function savePredictionRecord(pred) {
   });
 }
 
+/**
+ * Invalidate (delete) any existing prediction record for a report.
+ * Called when lab results are modified after verification, so that
+ * stale predictions cannot be served for changed clinical values.
+ */
+function invalidatePredictionForReport(reportId) {
+  const database = getDb();
+  try {
+    database.prepare('DELETE FROM predictions WHERE report_id = ?').run(reportId);
+  } catch (err) {
+    console.warn('[DB] Failed to invalidate prediction for report', reportId, ':', err.message);
+  }
+}
+
 function saveRagRecord(ragObj) {
   const database = getDb();
   const id = `RAG-${uuidv4().slice(0, 8)}`;
@@ -1471,5 +1485,6 @@ module.exports = {
   saveHealthChatMessage,
   getHealthChatHistory,
   getAllHealthChatSessions,
-  deleteHealthChatSession
+  deleteHealthChatSession,
+  invalidatePredictionForReport
 };
