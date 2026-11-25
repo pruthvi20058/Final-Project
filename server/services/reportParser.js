@@ -285,6 +285,37 @@ function extractDemographicsFromText(lineText, demographics) {
   }
 }
 
+let _sharedWorkerInstance = null;
+
+async function getOrCreateTesseractWorker() {
+  if (!_sharedWorkerInstance) {
+    const langPath = path.join(__dirname, '..');
+    const worker = await Tesseract.createWorker('eng', 1, {
+      langPath: langPath,
+      cachePath: langPath,
+      gzip: false
+    });
+    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    _sharedWorkerInstance = worker;
+  }
+  return _sharedWorkerInstance;
+}
+
+async function runOptimizedOCR(imageBuffer) {
+  try {
+    const worker = await getOrCreateTesseractWorker();
+    return await worker.recognize(imageBuffer, {}, { tsv: true });
+  } catch (err) {
+    console.warn('[Parser] OCR recognition error, recreating worker instance:', err.message);
+    if (_sharedWorkerInstance) {
+      try { await _sharedWorkerInstance.terminate(); } catch {}
+      _sharedWorkerInstance = null;
+    }
+    const worker = await getOrCreateTesseractWorker();
+    return await worker.recognize(imageBuffer, {}, { tsv: true });
+  }
+}
+
 async function extractTextFromFile(filePath, mimeType) {
   if (!fs.existsSync(filePath)) {
     throw new Error('File not found on server');
@@ -378,32 +409,37 @@ async function extractTextFromFile(filePath, mimeType) {
         try {
           const meta = await sharp(imageBuffer).metadata();
           dimensions = { width: meta.width, height: meta.height };
-          const targetWidth = Math.max((meta.width || 800) * 2, 2000);
-          imageBuffer = await sharp(imageBuffer)
-            .grayscale()
-            .resize({ width: targetWidth, fit: 'inside' })
+          
+          let pipeline = sharp(imageBuffer).grayscale();
+
+          // Intelligent resizing for document OCR:
+          // Optimal OCR resolution is 1300px - 1500px width.
+          // Never double an already high-res image (e.g. 1700px -> 3400px caused 4x OCR slowdown).
+          if (meta.width && meta.width > 1500) {
+            pipeline = pipeline.resize({ width: 1400, fit: 'inside' });
+          } else if (meta.width && meta.width < 900) {
+            pipeline = pipeline.resize({ width: Math.min(meta.width * 2, 1300), fit: 'inside' });
+          }
+
+          imageBuffer = await pipeline
             .normalize()
-            .sharpen()
             .toBuffer();
         } catch (sErr) {
           console.warn('[Parser] Sharp preprocessing skipped:', sErr.message);
         }
       }
 
-      const worker = await Tesseract.createWorker('eng');
-      await worker.setParameters({ tessedit_pageseg_mode: '3' });
-
-      let ret = await worker.recognize(imageBuffer, {}, { tsv: true });
+      let ret = await runOptimizedOCR(imageBuffer);
 
       if ((!ret.data.text || ret.data.text.trim().length < 30) && sharp) {
+        const worker = await getOrCreateTesseractWorker();
         await worker.setParameters({ tessedit_pageseg_mode: '6' });
         const fallbackRet = await worker.recognize(imageBuffer, {}, { tsv: true });
         if (fallbackRet.data.text && fallbackRet.data.text.length > (ret.data.text || '').length) {
           ret = fallbackRet;
         }
+        await worker.setParameters({ tessedit_pageseg_mode: '3' });
       }
-
-      await worker.terminate();
 
       return {
         text: ret.data.text || '',

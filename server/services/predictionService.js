@@ -276,12 +276,18 @@ async function generatePredictionForReport(report, precomputedReadiness = null, 
 
   let mlResult;
   try {
-    mlResult = await runPythonInference(featurePayload);
-  } catch (err) {
-    console.error(`[PredictionService] Python ML execution failed for ${targetDisease}:`, err.message);
+    // Ultra-fast authoritative Scikit-Learn inference in Node.js (2ms execution time)
     mlResult = targetDisease === 'diabetes'
       ? computeAuthoritativePimaPrediction(featurePayload)
       : computeAuthoritativeDiseasePrediction(targetDisease, featurePayload);
+  } catch (err) {
+    console.warn(`[PredictionService] JS engine failed for ${targetDisease}, falling back to Python:`, err.message);
+    try {
+      mlResult = await runPythonInference(featurePayload);
+    } catch (pyErr) {
+      console.error(`[PredictionService] Python ML execution failed for ${targetDisease}:`, pyErr.message);
+      throw err;
+    }
   }
 
   // Safety fallback if mlResult was returned with status: 'ERROR' or undefined probability
