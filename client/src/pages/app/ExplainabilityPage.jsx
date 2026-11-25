@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
-import { predictionService, reportService, FALLBACK_XAI, FALLBACK_REPORT } from '../../services/api';
+import { predictionService, reportService } from '../../services/api';
 
 const DISEASES = [
   { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
@@ -13,13 +13,15 @@ const DISEASES = [
 
 export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
-  const [xai, setXai] = useState(FALLBACK_XAI);
-  const [report, setReport] = useState(FALLBACK_REPORT);
+  const [xai, setXai] = useState(null);
+  const [report, setReport] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadXAI() {
       try {
+        setErrorMsg(null);
         const activeId = reportId || (predictionId ? predictionId.replace('PRED-', '') : 'REP-9001');
         const r = await reportService.getById(activeId);
         let activeDisease = selectedDisease;
@@ -41,13 +43,28 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
           if (r) setReport(r);
           setXai(data);
         }
-      } catch {
-        // preserve fallback
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+        }
       }
     }
     loadXAI();
     return () => { mounted = false; };
   }, [predictionId, reportId, selectedDisease]);
+
+  if (errorMsg) {
+    return (
+      <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔌</div>
+        <h3 style={{ color: '#ef4444', marginBottom: 12 }}>Unable to load explainability data</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{errorMsg}</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          Retry ↻
+        </button>
+      </div>
+    );
+  }
 
   if (!xai || !report) {
     return (

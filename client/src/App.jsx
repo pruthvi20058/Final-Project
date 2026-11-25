@@ -40,6 +40,9 @@ import DatasetStudioPage from './pages/admin/DatasetStudioPage';
 import KnowledgeBasePage from './pages/admin/KnowledgeBasePage';
 import SystemStatusPage from './pages/admin/SystemStatusPage';
 
+const PUBLIC_PAGES = ['home', 'about', 'features', 'how-it-works', 'research', 'contact'];
+const AUTH_PAGES = ['login', 'register', 'forgot-password'];
+
 export default function App() {
   const getInitialPage = () => {
     try {
@@ -51,10 +54,9 @@ export default function App() {
     return 'home';
   };
 
-  const defaultDoc = { id: 'DOC-101', name: 'Dr. Sarah Mitchell, MD', specialty: 'Endocrinology & Internal Medicine', role: 'Chief Resident' };
-  const [doctor, setDoctor] = useState(defaultDoc);
-  const [authChecked, setAuthChecked] = useState(true);
-  const [activePage, setActivePageState] = useState(getInitialPage); // home | about | features | how-it-works | research | contact | login | register | forgot-password | dashboard | ...
+  const [doctor, setDoctor] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [activePage, setActivePageState] = useState(getInitialPage);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notification, setNotification] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState('PAT-8001');
@@ -69,14 +71,36 @@ export default function App() {
     } catch {}
   };
 
+  // Initialize auth: load token from localStorage and verify with backend
   useEffect(() => {
-    try {
-      const saved = window.localStorage ? window.localStorage.getItem('mediagent_doctor') : null;
-      if (saved) {
-        setDoctor(JSON.parse(saved));
+    let mounted = true;
+
+    async function initAuth() {
+      try {
+        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
+        if (token) {
+          const res = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.doctor) {
+              setDoctor(data.doctor);
+            }
+          } else {
+            // Token invalid/expired — clear it
+            localStorage.removeItem('mediagent_token');
+            localStorage.removeItem('mediagent_doctor');
+          }
+        }
+      } catch {
+        // Backend unreachable — still allow app to load, but no auth
+      } finally {
+        if (mounted) setAuthChecked(true);
       }
-    } catch {}
-    setAuthChecked(true);
+    }
+
+    initAuth();
 
     const onPop = () => {
       try {
@@ -87,19 +111,32 @@ export default function App() {
     window.addEventListener('popstate', onPop);
     window.addEventListener('hashchange', onPop);
     return () => {
+      mounted = false;
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('hashchange', onPop);
     };
   }, []);
 
-  const handleLogin = (doc) => {
+  const handleLogin = async (doc) => {
     setDoctor(doc);
     localStorage.setItem('mediagent_doctor', JSON.stringify(doc));
     setActivePage('dashboard');
     showNotification(`Welcome, ${doc.name}`, 'success');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // Ignore logout errors — clear state regardless
+    }
+    localStorage.removeItem('mediagent_token');
     localStorage.removeItem('mediagent_doctor');
     setDoctor(null);
     setActivePage('home');
@@ -124,8 +161,14 @@ export default function App() {
     );
   }
 
+  // Require authentication for application routes
+  const requiresAuth = !PUBLIC_PAGES.includes(activePage) && !AUTH_PAGES.includes(activePage);
+  if (requiresAuth && !doctor) {
+    setActivePage('login');
+  }
+
   // PUBLIC ROUTES
-  if (['home', 'about', 'features', 'how-it-works', 'research', 'contact'].includes(activePage)) {
+  if (PUBLIC_PAGES.includes(activePage)) {
     switch (activePage) {
       case 'about': return <AboutPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
       case 'features': return <FeaturesPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
@@ -137,7 +180,7 @@ export default function App() {
   }
 
   // AUTH ROUTES
-  if (['login', 'register', 'forgot-password'].includes(activePage)) {
+  if (AUTH_PAGES.includes(activePage)) {
     switch (activePage) {
       case 'register': return <RegisterPage onNavigate={setActivePage} onLogin={handleLogin} />;
       case 'forgot-password': return <ForgotPasswordPage onNavigate={setActivePage} />;

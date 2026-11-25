@@ -1,8 +1,71 @@
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+
+const SALT_ROUNDS = 12;
 
 let db = null;
+
+/**
+ * Hash a plaintext password using bcrypt.
+ * @param {string} plainPassword
+ * @returns {Promise<string>} bcrypt hash
+ */
+async function hashPassword(plainPassword) {
+  return bcrypt.hash(plainPassword, SALT_ROUNDS);
+}
+
+/**
+ * Verify a plaintext password against a bcrypt hash.
+ * @param {string} plainPassword
+ * @param {string} hash
+ * @returns {Promise<boolean>}
+ */
+async function verifyPassword(plainPassword, hash) {
+  return bcrypt.compare(plainPassword, hash);
+}
+
+/**
+ * Sync version of hashPassword for use in seed/initialization contexts.
+ * @param {string} plainPassword
+ * @returns {string} bcrypt hash
+ */
+function hashPasswordSync(plainPassword) {
+  return bcrypt.hashSync(plainPassword, SALT_ROUNDS);
+}
+
+/**
+ * Sync version of verifyPassword for use in login contexts.
+ * @param {string} plainPassword
+ * @param {string} hash
+ * @returns {boolean}
+ */
+function verifyPasswordSync(plainPassword, hash) {
+  return bcrypt.compareSync(plainPassword, hash);
+}
+
+/**
+ * Migrate existing plaintext passwords in the doctors table to bcrypt hashes.
+ * Any doctor with a non-null `password` and null `password_hash` gets their
+ * plaintext password hashed and stored in `password_hash`, then `password` is cleared.
+ * This runs once at startup and never logs or returns plaintext passwords.
+ */
+function migratePlaintextPasswords() {
+  try {
+    const doctors = db.prepare('SELECT id, password, password_hash FROM doctors WHERE password IS NOT NULL AND password_hash IS NULL').all();
+    for (const doctor of doctors) {
+      try {
+        const hash = hashPasswordSync(doctor.password);
+        db.prepare('UPDATE doctors SET password_hash = ?, password = NULL WHERE id = ?').run(hash, doctor.id);
+      } catch (err) {
+        console.warn(`[DB] Failed to migrate password for doctor ${doctor.id}:`, err.message);
+      }
+    }
+  } catch {
+    // Table may not exist yet or column may be missing; ignore
+  }
+}
 
 function getDb() {
   if (!db) {
@@ -28,7 +91,9 @@ function initTables() {
       allergies TEXT DEFAULT '[]',
       history TEXT DEFAULT '[]',
       current_medications TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES doctors(id)
     );
 
     CREATE TABLE IF NOT EXISTS clinical_cases (
@@ -78,9 +143,11 @@ function initTables() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
+      password TEXT,
+      password_hash TEXT,
       specialty TEXT NOT NULL,
       license_number TEXT NOT NULL,
+      role TEXT DEFAULT 'doctor',
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -105,9 +172,13 @@ function initTables() {
       chief_complaint TEXT,
       symptoms TEXT,
       history TEXT,
-      status TEXT DEFAULT 'analyzed',
+      status TEXT DEFAULT 'UPLOADED',
+      verification_timestamp TEXT,
+      verified_by TEXT,
       demographics TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES doctors(id)
     );
 
     CREATE TABLE IF NOT EXISTS lab_results (
@@ -117,12 +188,17 @@ function initTables() {
       raw_name TEXT,
       normalized_name TEXT,
       value REAL NOT NULL,
+      original_value REAL,
       units TEXT,
       reference_range TEXT,
       status TEXT NOT NULL,
       quality TEXT DEFAULT 'VALID',
+      validation_flags TEXT DEFAULT '[]',
       confidence REAL DEFAULT 95.0,
+      source_location TEXT,
       validated_by_user INTEGER DEFAULT 0,
+      validated_at TEXT,
+      validated_by TEXT,
       FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE
     );
 
@@ -279,6 +355,18 @@ function initTables() {
   try { db.exec("ALTER TABLE lab_results ADD COLUMN normalized_name TEXT;"); } catch {}
   try { db.exec("ALTER TABLE lab_results ADD COLUMN quality TEXT DEFAULT 'VALID';"); } catch {}
   try { db.exec("ALTER TABLE reports ADD COLUMN demographics TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE doctors ADD COLUMN password_hash TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE doctors ADD COLUMN role TEXT DEFAULT 'doctor';"); } catch {}
+  try { db.exec("ALTER TABLE patients ADD COLUMN created_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN created_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'UPLOADED';"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN verification_timestamp TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN verified_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN original_value REAL;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validation_flags TEXT DEFAULT '[]';"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN source_location TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validated_at TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validated_by TEXT;"); } catch {}
 }
 
 function seedData() {
@@ -299,6 +387,27 @@ function seedData() {
       VALUES (@id, @name, @age, @gender, @blood_type, @weight, @height, @allergies, @history, @current_medications)
     `);
     for (const p of patients) stmt.run(p);
+  }
+
+  // Seed default doctor account with hashed password
+  const doctorCount = db.prepare('SELECT COUNT(*) as c FROM doctors').get().c;
+  if (doctorCount === 0) {
+    const defaultPasswordHash = hashPasswordSync('MediAgent@2026!Secure');
+    db.prepare(`
+      INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
+      VALUES (@id, @name, @email, @password_hash, @specialty, @license_number, @role, datetime('now'))
+    `).run({
+      id: 'DOC-001',
+      name: 'Dr. Pavan Kumar',
+      email: 'pavan@mediagent.com',
+      password_hash: defaultPasswordHash,
+      specialty: 'General Medicine',
+      license_number: 'MG-2026-001',
+      role: 'doctor',
+    });
+  } else {
+    // Migrate any existing plaintext passwords to bcrypt hashes
+    migratePlaintextPasswords();
   }
 
   // Ensure default demo report REP-9001 exists with 20 generic lab parameters
@@ -450,13 +559,15 @@ function seedData() {
 function saveReportRecord(reportObj) {
   const database = getDb();
   const stmt = database.prepare(`
-    INSERT INTO reports (id, patient_id, patient_name, original_filename, stored_filename, file_type, file_size, raw_ocr_text, ocr_confidence, chief_complaint, symptoms, history, status, demographics, created_at)
-    VALUES (@id, @patient_id, @patient_name, @original_filename, @stored_filename, @file_type, @file_size, @raw_ocr_text, @ocr_confidence, @chief_complaint, @symptoms, @history, @status, @demographics, datetime('now'))
+    INSERT INTO reports (id, patient_id, patient_name, original_filename, stored_filename, file_type, file_size, raw_ocr_text, ocr_confidence, chief_complaint, symptoms, history, status, verification_timestamp, verified_by, demographics, created_at)
+    VALUES (@id, @patient_id, @patient_name, @original_filename, @stored_filename, @file_type, @file_size, @raw_ocr_text, @ocr_confidence, @chief_complaint, @symptoms, @history, @status, @verification_timestamp, @verified_by, @demographics, datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       raw_ocr_text = excluded.raw_ocr_text,
       ocr_confidence = excluded.ocr_confidence,
       demographics = excluded.demographics,
-      status = excluded.status
+      status = excluded.status,
+      verification_timestamp = excluded.verification_timestamp,
+      verified_by = excluded.verified_by
   `);
 
   const demoStr = reportObj.demographics
@@ -476,7 +587,9 @@ function saveReportRecord(reportObj) {
     chief_complaint: reportObj.chief_complaint || reportObj.chiefComplaint || '',
     symptoms: Array.isArray(reportObj.symptoms) ? reportObj.symptoms.join(', ') : (reportObj.symptoms || ''),
     history: reportObj.history || '',
-    status: reportObj.status || 'analyzed',
+    status: reportObj.status || 'UPLOADED',
+    verification_timestamp: reportObj.verification_timestamp || null,
+    verified_by: reportObj.verified_by || null,
     demographics: demoStr
   });
 }
@@ -486,8 +599,8 @@ function saveLabResultsRecord(reportId, labResults) {
   database.prepare('DELETE FROM lab_results WHERE report_id = ?').run(reportId);
 
   const insertStmt = database.prepare(`
-    INSERT INTO lab_results (id, report_id, test_name, raw_name, normalized_name, value, units, reference_range, status, quality, confidence, validated_by_user)
-    VALUES (@id, @report_id, @test_name, @raw_name, @normalized_name, @value, @units, @reference_range, @status, @quality, @confidence, @validated_by_user)
+    INSERT INTO lab_results (id, report_id, test_name, raw_name, normalized_name, value, original_value, units, reference_range, status, quality, validation_flags, confidence, source_location, validated_by_user, validated_at, validated_by)
+    VALUES (@id, @report_id, @test_name, @raw_name, @normalized_name, @value, @original_value, @units, @reference_range, @status, @quality, @validation_flags, @confidence, @source_location, @validated_by_user, @validated_at, @validated_by)
   `);
 
   const tx = database.transaction((items) => {
@@ -514,6 +627,13 @@ function saveLabResultsRecord(reportId, labResults) {
         unitsStr = JSON.stringify(item.units);
       }
 
+      let validationFlagsStr = '[]';
+      if (item.validationFlags && Array.isArray(item.validationFlags)) {
+        validationFlagsStr = JSON.stringify(item.validationFlags);
+      } else if (item.validation_flags && typeof item.validation_flags === 'string') {
+        validationFlagsStr = item.validation_flags;
+      }
+
       insertStmt.run({
         id: uniqueId,
         report_id: reportId,
@@ -521,12 +641,17 @@ function saveLabResultsRecord(reportId, labResults) {
         raw_name: item.rawName || item.raw_name || item.testName || 'Lab Test',
         normalized_name: item.normalizedName || item.normalized_name || '',
         value: item.value,
+        original_value: item.originalValue !== undefined ? item.originalValue : item.value,
         units: unitsStr,
         reference_range: refRangeStr,
         status: item.status || 'normal',
         quality: item.quality || 'VALID',
+        validation_flags: validationFlagsStr,
         confidence: item.confidence !== undefined ? item.confidence : 95.0,
-        validated_by_user: item.validatedByUser ? 1 : 0
+        source_location: item.sourceLocation || item.source_location || null,
+        validated_by_user: item.validatedByUser ? 1 : 0,
+        validated_at: item.validatedAt || null,
+        validated_by: item.validatedBy || null
       });
     }
   });
@@ -643,13 +768,18 @@ function getReportRecord(reportId) {
     rawName: r.raw_name || r.test_name,
     normalizedName: r.normalized_name || '',
     value: r.value,
+    originalValue: r.original_value,
     units: r.units,
     unit: r.units,
     referenceRange: r.reference_range,
     status: r.status,
     quality: r.quality || 'VALID',
+    validationFlags: r.validation_flags ? JSON.parse(r.validation_flags) : [],
     confidence: r.confidence,
-    validatedByUser: Boolean(r.validated_by_user)
+    sourceLocation: r.source_location,
+    validatedByUser: Boolean(r.validated_by_user),
+    validatedAt: r.validated_at,
+    validatedBy: r.validated_by
   }));
 
   const metaText = [
@@ -691,6 +821,7 @@ function getReportRecord(reportId) {
     status: rep.status,
     disease: detectedDisease,
     uploadDate: rep.created_at,
+    createdBy: rep.created_by,
     labResults
   };
 }
@@ -785,12 +916,18 @@ function getAllReportRecords() {
       rawName: r.raw_name || r.test_name,
       normalizedName: r.normalized_name || '',
       value: r.value,
+      originalValue: r.original_value,
       units: r.units,
       unit: r.units,
       referenceRange: r.reference_range,
       status: r.status,
       quality: r.quality || 'VALID',
-      confidence: r.confidence
+      validationFlags: r.validation_flags ? JSON.parse(r.validation_flags) : [],
+      confidence: r.confidence,
+      sourceLocation: r.source_location,
+      validatedByUser: Boolean(r.validated_by_user),
+      validatedAt: r.validated_at,
+      validatedBy: r.validated_by
     }));
 
     const metaText = [
@@ -822,6 +959,7 @@ function getAllReportRecords() {
       uploadDate: rep.created_at,
       status: rep.status,
       ocrConfidence: rep.ocr_confidence,
+      createdBy: rep.created_by,
       labResults
     };
   });
@@ -1247,8 +1385,71 @@ function deleteHealthChatSession(sessionId) {
   return { success: info.changes > 0, sessionId };
 }
 
+/**
+ * Look up a doctor by email (case-insensitive).
+ * @param {string} email
+ * @returns {Object|null} doctor record with password_hash included
+ */
+function getDoctorByEmail(email) {
+  const database = getDb();
+  return database.prepare('SELECT * FROM doctors WHERE LOWER(email) = LOWER(?)').get(email.trim());
+}
+
+/**
+ * Create a new doctor account with a hashed password.
+ * @param {Object} data - { id, name, email, password, specialty, licenseNumber, role }
+ * @returns {Object} created doctor (without password fields)
+ */
+async function createDoctor(data) {
+  const database = getDb();
+  const passwordHash = await hashPassword(data.password);
+
+  database.prepare(`
+    INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
+    VALUES (@id, @name, @email, @password_hash, @specialty, @license_number, @role, datetime('now'))
+  `).run({
+    id: data.id,
+    name: data.name,
+    email: data.email,
+    password_hash: passwordHash,
+    specialty: data.specialty,
+    license_number: data.licenseNumber,
+    role: data.role || 'doctor',
+  });
+
+  const row = database.prepare('SELECT id, name, email, specialty, license_number, role, created_at FROM doctors WHERE email = ?').get(data.email);
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    specialty: row.specialty,
+    licenseNumber: row.license_number,
+    role: row.role,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Delete a doctor's session tokens (logout).
+ * @param {string} token - JWT token to invalidate (note: JWTs are stateless;
+ *   client-side removal is the primary logout mechanism. This is a no-op
+ *   kept for interface compatibility.)
+ */
+function revokeToken() {
+  // JWTs are stateless; logout is handled client-side by removing the token.
+  // A server-side token blacklist could be added here in future if needed.
+  return { success: true };
+}
+
 module.exports = {
   getDb,
+  hashPassword,
+  verifyPassword,
+  hashPasswordSync,
+  verifyPasswordSync,
+  getDoctorByEmail,
+  createDoctor,
+  revokeToken,
   saveReportRecord,
   saveLabResultsRecord,
   savePredictionRecord,

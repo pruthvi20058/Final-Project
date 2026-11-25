@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import StatusBadge from '../../components/StatusBadge';
-import { reportService, CLINICAL_ONTOLOGY, FALLBACK_REPORT } from '../../services/api';
+import { reportService, CLINICAL_ONTOLOGY } from '../../services/api';
 
 const DISEASES = [
   { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
@@ -14,9 +14,9 @@ const DISEASES = [
 export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [diseaseInitialized, setDiseaseInitialized] = useState(false);
-  const [report, setReport] = useState(FALLBACK_REPORT);
-  const [labResults, setLabResults] = useState(FALLBACK_REPORT.labResults);
-  const [modelReadiness, setModelReadiness] = useState(FALLBACK_REPORT.modelReadiness);
+  const [report, setReport] = useState(null);
+  const [labResults, setLabResults] = useState([]);
+  const [modelReadiness, setModelReadiness] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [newValue, setNewValue] = useState('');
   const [showRawOcr, setShowRawOcr] = useState(false);
@@ -24,6 +24,9 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
   const [newTestName, setNewTestName] = useState('Glucose (Fasting)');
   const [newTestValue, setNewTestValue] = useState('');
   const [loadError, setLoadError] = useState(null);
+  const [verificationStatus, setVerificationStatus] = useState('PENDING'); // PENDING, VERIFIED
+  const [allValuesVerified, setAllValuesVerified] = useState(false);
+  const [suspiciousCount, setSuspiciousCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -32,7 +35,22 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
         const data = await reportService.getById(reportId || 'REP-9001', selectedDisease);
         if (mounted && data) {
           setReport(data);
-          setLabResults(data.labResults || FALLBACK_REPORT.labResults);
+          setLabResults(data.labResults || []);
+
+          // Track verification status from backend
+          if (data.status === 'VERIFIED' || data.verificationStatus === 'VERIFIED') {
+            setVerificationStatus('VERIFIED');
+            setAllValuesVerified(true);
+          } else {
+            setVerificationStatus('PENDING');
+            setAllValuesVerified(false);
+          }
+
+          // Count suspicious/invalid values requiring user attention
+          const susp = (data.labResults || []).filter(l =>
+            l.quality === 'SUSPICIOUS' || l.quality === 'INVALID' || !l.validatedByUser
+          ).length;
+          setSuspiciousCount(susp);
 
           if (!diseaseInitialized) {
             const detected = data.disease || (
@@ -54,7 +72,9 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
           }
         }
       } catch (err) {
-        // preserve fallback
+        if (mounted) {
+          setLoadError(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+        }
       }
     }
     loadReport();
@@ -97,10 +117,16 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
       lr.id === editingItem.id ? { ...lr, value: isNaN(numVal) ? lr.value : numVal, validatedByUser: true, confidence: 100 } : lr
     );
     setLabResults(updated);
+    const allVerified = updated.every(lr => lr.validatedByUser);
+    setAllValuesVerified(allVerified);
     try {
       const res = await reportService.updateLabResults(report.id, updated, selectedDisease);
       if (res && res.modelReadiness) {
         setModelReadiness(res.modelReadiness);
+      }
+      if (res && res.verificationStatus === 'VERIFIED') {
+        setVerificationStatus('VERIFIED');
+        setAllValuesVerified(true);
       }
     } catch (saveErr) {
       console.error('[ReportExtractionPage] Failed to save verified value:', saveErr);
@@ -149,10 +175,15 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
 
     const updated = [...labResults, newItem];
     setLabResults(updated);
+    setAllValuesVerified(updated.every(lr => lr.validatedByUser));
     try {
       const res = await reportService.updateLabResults(report.id, updated, selectedDisease);
       if (res && res.modelReadiness) {
         setModelReadiness(res.modelReadiness);
+      }
+      if (res && res.verificationStatus === 'VERIFIED') {
+        setVerificationStatus('VERIFIED');
+        setAllValuesVerified(true);
       }
     } catch (addErr) {
       console.error('[ReportExtractionPage] Failed to add parameter:', addErr);
@@ -177,15 +208,61 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
             Multi-modal vision extraction for: <strong style={{ color: '#00d4aa' }}>{report.filename}</strong> (Patient ID: {report.patientId})
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={() => setShowAddModal(true)}>
             + Add Lab Parameter
           </button>
-          <button className="btn btn-primary" onClick={() => onNavigate('predictions')}>
-            Proceed to Disease Screening →
+          <button className="btn btn-outline" onClick={() => window.location.reload()} title="Re-upload report">
+            🔄 Re-upload
+          </button>
+          <button className="btn btn-primary"
+            onClick={() => {
+              if (allValuesVerified && verificationStatus === 'VERIFIED') {
+                onNavigate('predictions');
+              }
+            }}
+            disabled={!allValuesVerified || verificationStatus !== 'VERIFIED'}
+          >
+            {allValuesVerified && verificationStatus === 'VERIFIED'
+              ? '✓ Proceed to Disease Screening →'
+              : '⚠️ Verify All Values First'}
           </button>
         </div>
       </div>
+
+      {/* VERIFICATION STATUS BANNER */}
+      {verificationStatus === 'PENDING' && (
+        <div style={{
+          background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)',
+          borderRadius: 'var(--radius-md)', padding: '14px 20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div>
+            <strong style={{ color: '#f59e0b' }}>User Verification Required</strong>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              {suspiciousCount > 0
+                ? `${suspiciousCount} value(s) require review before prediction. All extracted values must be confirmed.`
+                : 'Please review and confirm all extracted laboratory values before proceeding.'}
+            </p>
+          </div>
+        </div>
+      )}
+      {verificationStatus === 'VERIFIED' && (
+        <div style={{
+          background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)',
+          borderRadius: 'var(--radius-md)', padding: '14px 20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>✓</span>
+          <div>
+            <strong style={{ color: '#10b981' }}>All Values Verified</strong>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Confirmed laboratory values are cleared for prediction pipeline.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* DUAL-PANE SPLIT EXTRACTION LAYOUT */}
       <div className="split-extraction-container" style={{ alignItems: 'start' }}>
@@ -363,14 +440,38 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                   {labResults.map(item => {
                     const isHigh = item.status === 'HIGH' || item.status === 'critical';
                     const isLow = item.status === 'LOW';
+                    const needsAttention = item.quality === 'SUSPICIOUS' || item.quality === 'INVALID' || !item.validatedByUser;
+                    const validationFlags = item.validationFlags || [];
                     return (
-                      <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s ease' }}>
-                        <td style={{ padding: '12px 14px', color: '#fff', fontWeight: 600 }}>{item.rawName || item.testName}</td>
+                      <tr key={item.id}
+                        style={{
+                          borderBottom: '1px solid rgba(255,255,255,0.05)',
+                          transition: 'background 0.15s ease',
+                          background: needsAttention ? 'rgba(245,158,11,0.08)' : 'transparent',
+                          borderLeft: needsAttention ? '4px solid #f59e0b' : 'transparent'
+                        }}>
+                        <td style={{ padding: '12px 14px', color: '#fff', fontWeight: 600 }}>
+                          {item.rawName || item.testName}
+                          {validationFlags.length > 0 && (
+                            <span style={{
+                              fontSize: '0.68rem', padding: '2px 6px', borderRadius: 4,
+                              background: 'rgba(245,158,11,0.2)', color: '#f59e0b',
+                              marginLeft: 6, fontWeight: 700
+                            }}>⚠</span>
+                          )}
+                        </td>
                         <td style={{ padding: '12px 14px', color: '#38bdf8', fontSize: '0.76rem', fontFamily: 'monospace' }}>
                           {item.normalizedName || 'generic'}
                         </td>
                         <td style={{ padding: '12px 14px', fontWeight: 700, color: isHigh ? '#ef4444' : isLow ? '#f59e0b' : '#10b981', fontFamily: 'monospace' }}>
                           {item.value}
+                          {item.originalValue !== undefined && item.originalValue !== item.value && (
+                            <span style={{
+                              fontSize: '0.68rem', color: '#10b981', marginLeft: 6, fontWeight: 700
+                            }}>
+                              (was {item.originalValue})
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>{item.units || item.unit || ''}</td>
                         <td style={{ padding: '12px 14px', color: 'var(--text-tertiary)' }}>{item.referenceRange || '—'}</td>
@@ -382,11 +483,22 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
                           }}>
                             {item.quality || 'VALID'}
                           </span>
+                          {validationFlags.length > 0 && (
+                            <div style={{ fontSize: '0.66rem', color: '#fbbf24', marginTop: 4, maxWidth: 200 }}>
+                              {validationFlags.slice(0, 2).map((f, fi) => (
+                                <span key={fi} style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>• {f.replace(/_/g, ' ')}</span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                           <button
                             className="btn btn-secondary"
-                            style={{ padding: '4px 10px', fontSize: '0.74rem' }}
+                            style={{
+                              padding: '4px 10px', fontSize: '0.74rem',
+                              background: needsAttention ? 'rgba(245,158,11,0.2)' : 'transparent',
+                              borderColor: needsAttention ? '#f59e0b' : 'rgba(255,255,255,0.2)'
+                            }}
                             onClick={() => handleVerifyValue(item)}
                           >
                             {item.validatedByUser ? '✓ Verified' : 'Verify / Edit'}

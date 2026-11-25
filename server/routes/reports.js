@@ -34,6 +34,20 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 } // 15 MB max
 });
 
+// Helper: check if the authenticated user owns the report (or report is unowned legacy data)
+function reportBelongsToUser(report, userId) {
+  if (!report || !report.created_by) return true; // legacy unowned data — allow access
+  return report.created_by === userId;
+}
+
+// Helper: get report record and enforce ownership
+function getReportWithOwnership(db, reportId, userId) {
+  const report = getReportRecord(reportId);
+  if (!report) return null;
+  if (!reportBelongsToUser(report, userId)) return 'FORBIDDEN';
+  return report;
+}
+
 // Helper for single file upload middleware with file filter
 const singleFileUpload = (req, res, next) => {
   upload.single('file')(req, res, (err) => {
@@ -150,8 +164,9 @@ router.post('/upload', singleFileUpload, async (req, res) => {
       chief_complaint: req.body.symptoms || `Patient uploaded laboratory report for automated ${detectedDisease} analysis.`,
       symptoms: req.body.symptoms || '',
       history: req.body.history || '',
-      status: 'analyzed',
-      demographics: patientDemographics
+      status: 'UPLOADED',
+      demographics: patientDemographics,
+      created_by: req.user.id,
     };
 
     // Save Report & All Extracted Lab Results into SQLite
@@ -161,38 +176,38 @@ router.post('/upload', singleFileUpload, async (req, res) => {
     const savedReport = getReportRecord(reportId);
     savedReport.disease = detectedDisease;
 
-    // Compute Model Readiness for the Detected Disease
+    // Compute Model Readiness for the Detected Disease (diagnostics only, no prediction yet)
     const modelReadiness = computeDiseaseModelReadiness(savedReport, detectedDisease);
     if (detectedDisease === 'diabetes') {
       logReadinessDiagnostics(reportId, labResults, modelReadiness);
     }
 
-    // Run ML Prediction Engine with Safe Gating for the Detected Disease
-    const predictionObj = await generatePredictionForReport(savedReport, modelReadiness, detectedDisease);
+    // Determine extraction completion status
+    const hasSuspicious = labResults.some(l => l.quality === 'SUSPICIOUS' || l.quality === 'INVALID');
+    const extractionStatus = hasSuspicious || labResults.length === 0 ? 'NEEDS_VERIFICATION' : 'NEEDS_VERIFICATION';
+    // All reports require user verification before prediction — no unverified values enter the ML pipeline
 
-    // Save Prediction in SQLite DB
-    if (predictionObj && (predictionObj.status === 'SUCCESS' || predictionObj.status === 'UNAVAILABLE')) {
-      savePredictionRecord(predictionObj);
-    }
+    savedReport.modelReadiness = modelReadiness;
+    savedReport.disease = detectedDisease;
 
     // Separate Extraction object from Model Readiness object
     const reportExtraction = {
       totalResults: labResults.length,
       results: labResults,
-      discardedCandidates
+      discardedCandidates,
+      requiresVerification: true,
+      verificationStatus: 'PENDING'
     };
-
-    savedReport.modelReadiness = modelReadiness;
-    savedReport.disease = detectedDisease;
 
     return res.status(201).json({
       success: true,
       reportId: savedReport.id,
-      status: 'PROCESSED',
+      status: 'UPLOADED',
       report: savedReport,
       reportExtraction,
       modelReadiness,
-      prediction: predictionObj,
+      prediction: null,
+      message: 'Report uploaded and extracted. User verification required before prediction can be generated.',
       debug: {
         ocrCandidatesCount: candidatesCount,
         parsedLabResultsCount: labResults.length,
@@ -209,10 +224,11 @@ router.post('/upload', singleFileUpload, async (req, res) => {
   }
 });
 
-// 2. GET /api/reports — List all reports
+// 2. GET /api/reports — List all reports (owned by authenticated user, or unowned legacy data)
 router.get('/', (req, res) => {
   try {
-    const reports = getAllReportRecords();
+    const allReports = getAllReportRecords();
+    const reports = allReports.filter((r) => reportBelongsToUser(r, req.user.id));
     return res.json({ success: true, reports });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'DATABASE_ERROR', message: err.message } });
@@ -227,6 +243,13 @@ router.get('/:id/extraction-debug', (req, res) => {
       return res.status(404).json({
         success: false,
         error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' }
+      });
+    }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this report' }
       });
     }
 
@@ -253,7 +276,7 @@ router.get('/:id/extraction-debug', (req, res) => {
   }
 });
 
-// 4. GET /api/reports/:id — Retrieve report by ID
+// 4. GET /api/reports/:id — Retrieve report by ID (ownership enforced)
 router.get('/:id', (req, res) => {
   try {
     const report = getReportRecord(req.params.id);
@@ -261,6 +284,13 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({
         success: false,
         error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' }
+      });
+    }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this report' }
       });
     }
 
@@ -292,6 +322,13 @@ router.get('/:id/prediction', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: { code: 'REPORT_NOT_FOUND', message: `Report ID ${req.params.id} not found in database.` }
+      });
+    }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this report' }
       });
     }
 
@@ -461,6 +498,13 @@ router.post('/:id/predict', async (req, res) => {
       });
     }
 
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this report' }
+      });
+    }
+
     const requestedDisease = (req.body?.disease || req.query?.disease || report.disease || 'diabetes').toLowerCase().trim();
     const readiness = computeDiseaseModelReadiness(report, requestedDisease);
 
@@ -542,8 +586,27 @@ router.put('/:id/lab-results', async (req, res) => {
       });
     }
 
-    // Flag as user-validated
-    const validatedResults = labResults.map(l => ({ ...l, validatedByUser: true }));
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this report' }
+      });
+    }
+
+    const db = getDb();
+    const now = new Date().toISOString();
+    const userId = req.user && req.user.id ? req.user.id : null;
+
+    // Track original values before user changes, flag user-modified values
+    const validatedResults = labResults.map(l => {
+      const result = { ...l, validatedByUser: true, validatedAt: now, validatedBy: userId };
+      if (l.originalValue !== undefined && l.originalValue !== null && l.originalValue !== l.value) {
+        result.originalValue = l.originalValue;
+      } else if (l.value !== undefined) {
+        result.originalValue = l.value;
+      }
+      return result;
+    });
     saveLabResultsRecord(req.params.id, validatedResults);
 
     // Synchronize demographics if user verified or added an age parameter
@@ -560,7 +623,6 @@ router.put('/:id/lab-results', async (req, res) => {
       }
       if (!isNaN(parsedAge) && parsedAge >= 1 && parsedAge <= 120) {
         try {
-          const db = getDb();
           let currDemo = {};
           if (report.patientDemographics) {
             currDemo = typeof report.patientDemographics === 'string' ? JSON.parse(report.patientDemographics) : { ...report.patientDemographics };
@@ -575,6 +637,10 @@ router.put('/:id/lab-results', async (req, res) => {
       }
     }
 
+    // Mark report as VERIFIED — only verified values may enter the prediction pipeline
+    db.prepare('UPDATE reports SET status = ?, verification_timestamp = ?, verified_by = ? WHERE id = ?')
+      .run('VERIFIED', now, userId, req.params.id);
+
     const requestedDisease = (req.body?.disease || req.query?.disease || report.disease || 'diabetes').toLowerCase().trim();
     const updatedReport = getReportRecord(req.params.id);
     const updatedReadiness = computeDiseaseModelReadiness(updatedReport, requestedDisease);
@@ -582,10 +648,18 @@ router.put('/:id/lab-results', async (req, res) => {
       logReadinessDiagnostics(updatedReport.id, updatedReport.labResults || [], updatedReadiness);
     }
 
-    const updatedPrediction = await generatePredictionForReport(updatedReport, updatedReadiness, requestedDisease);
-
-    if (updatedPrediction && updatedPrediction.status === 'SUCCESS') {
-      savePredictionRecord(updatedPrediction);
+    // Only generate prediction AFTER verification — confirmed values only enter ML pipeline
+    let updatedPrediction = null;
+    if (updatedReadiness.status === 'READY') {
+      updatedPrediction = await generatePredictionForReport(updatedReport, updatedReadiness, requestedDisease);
+      if (updatedPrediction && updatedPrediction.status === 'SUCCESS') {
+        savePredictionRecord(updatedPrediction);
+      }
+    } else {
+      updatedPrediction = {
+        status: updatedReadiness.status,
+        message: `Prediction gated: ${updatedReadiness.status}. Required features missing: ${(updatedReadiness.missingFeatures || []).join(', ')}`
+      };
     }
 
     updatedReport.modelReadiness = updatedReadiness;
@@ -595,20 +669,27 @@ router.put('/:id/lab-results', async (req, res) => {
       success: true,
       report: updatedReport,
       modelReadiness: updatedReadiness,
-      prediction: updatedPrediction
+      prediction: updatedPrediction,
+      verificationStatus: 'VERIFIED',
+      message: 'Report verified. Prediction generated from confirmed values only.'
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
 });
 
-// 7. GET /api/reports/:id/xai — Retrieve SHAP feature attribution
+// 7. GET /api/reports/:id/xai — Retrieve SHAP feature attribution (ownership enforced)
 router.get('/:id/xai', (req, res) => {
   try {
     const report = getReportRecord(req.params.id);
     if (!report) {
       return res.status(404).json({ success: false, error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' } });
     }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this report' } });
+    }
+
     const pred = getPredictionRecord(req.params.id);
     let shapList = pred && pred.shapContributions && Array.isArray(pred.shapContributions) && pred.shapContributions.length > 0
       ? pred.shapContributions
@@ -716,13 +797,18 @@ router.get('/:id/xai', (req, res) => {
   }
 });
 
-// 8. GET /api/reports/:id/evidence — Retrieve medical evidence
+// 8. GET /api/reports/:id/evidence — Retrieve medical evidence (ownership enforced)
 router.get('/:id/evidence', (req, res) => {
   try {
     const report = getReportRecord(req.params.id);
     if (!report) {
       return res.status(404).json({ success: false, error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' } });
     }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this report' } });
+    }
+
     const pred = getPredictionRecord(req.params.id);
     const ev = pred && pred.evidence && Object.keys(pred.evidence).length > 0 ? pred.evidence : {};
 
@@ -782,13 +868,18 @@ router.get('/:id/evidence', (req, res) => {
   }
 });
 
-// 9. GET /api/reports/:id/risk — Retrieve risk assessment
+// 9. GET /api/reports/:id/risk — Retrieve risk assessment (ownership enforced)
 router.get('/:id/risk', (req, res) => {
   try {
     const report = getReportRecord(req.params.id);
     if (!report) {
       return res.status(404).json({ success: false, error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' } });
     }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this report' } });
+    }
+
     const pred = getPredictionRecord(req.params.id);
 
     const reportLabResults = report.labResults || [];

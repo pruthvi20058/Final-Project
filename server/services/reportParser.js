@@ -601,12 +601,52 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
       // Data Quality Classification
       let quality = 'VALID';
       let status = 'NORMAL';
+      const validationFlags = [];
+
+      // Physiological plausibility bounds per parameter
+      const PHYSIOLOGICAL_BOUNDS = {
+        // Hematology
+        pcv: { max: 60, min: 10, unit: '%' },        // Hematocrit / Packed Cell Volume
+        hemoglobin: { min: 3, max: 25, unit: 'g/dL' },
+        wbc: { min: 500, max: 100000, unit: 'cells/µL' },
+        rbc: { min: 1.0, max: 8.0, unit: 'million/µL' },
+        platelets: { min: 10, max: 1000, unit: 'lakhs/µL' },
+        mcv: { min: 50, max: 120, unit: 'fL' },
+        mch: { min: 15, max: 40, unit: 'pg' },
+        mchc: { min: 20, max: 40, unit: 'g/dL' },
+        // Biochemical
+        glucose: { min: 20, max: 600, unit: 'mg/dL' },
+        creatinine: { min: 0.1, max: 20, unit: 'mg/dL' },
+        bun: { min: 1, max: 100, unit: 'mg/dL' },
+        alt: { min: 1, max: 2000, unit: 'U/L' },
+        ast: { min: 1, max: 2000, unit: 'U/L' },
+        total_bilirubin: { min: 0.1, max: 30, unit: 'mg/dL' },
+        hba1c: { min: 3.0, max: 20.0, unit: '%' },
+        bmi: { min: 10, max: 70, unit: 'kg/m²' },
+        age: { min: 1, max: 120, unit: 'years' }
+      };
+
+      const bounds = PHYSIOLOGICAL_BOUNDS[normalizedName];
 
       if (numVal < 0) {
         quality = 'INVALID';
         status = 'INVALID';
-      } else if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
-        quality = 'SUSPICIOUS';
+        validationFlags.push('negative_value');
+      } else if (bounds) {
+        if (numVal < bounds.min || numVal > bounds.max) {
+          quality = 'SUSPICIOUS';
+          validationFlags.push(`value_outside_physiological_range(${bounds.min}-${bounds.max}${bounds.unit})`);
+        }
+        // HCT-specific: flag values > 60% (physiologically impossible for humans)
+        if (normalizedName === 'pcv' && numVal > 60) {
+          validationFlags.push('hematocrit_above_60_percent_physiologically_impossible');
+        }
+      }
+
+      // Existing high-value flags (kept for backward compatibility)
+      if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
+        if (quality === 'VALID') quality = 'SUSPICIOUS';
+        validationFlags.push('high_value_flagged');
         status = 'HIGH';
       } else if (normalizedName === 'glucose' && numVal >= 126) {
         status = 'HIGH';
@@ -614,6 +654,17 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
         status = 'HIGH';
       } else if (normalizedName === 'hemoglobin' && numVal < 11) {
         status = 'LOW';
+      }
+
+      // Decimal placement detection: flag whole numbers > 100 that could be shifted decimals
+      // (e.g. OCR reads "39.5" as "395" when the decimal point is dropped)
+      if (numVal > 100 && Number.isInteger(numVal) && normalizedName !== 'wbc' && normalizedName !== 'platelets') {
+        const shifted = numVal / 10;
+        const shiftedBounds = bounds ? bounds : {};
+        if (shifted >= (shiftedBounds.min || 0) && shifted <= (shiftedBounds.max || Infinity)) {
+          validationFlags.push(`possible_decimal_shift(value_${numVal}_may_be_${shifted})`);
+          if (quality === 'VALID') quality = 'SUSPICIOUS';
+        }
       }
 
       // Calculate extraction confidence from OCR word tokens
@@ -627,16 +678,19 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
         normalizedName: normalizedName,
         testName: rawName,
         value: numVal,
+        originalValue: numVal,
         unit: cleanUnit,
         units: cleanUnit,
         referenceRange: parseReferenceRangeStruct(rawRefText),
         status: status,
         quality: quality,
+        validationFlags: validationFlags,
         source: {
           page: 1,
           text: lineText,
           boundingBox: bbox
         },
+        sourceLocation: bbox ? `x:${bbox.x0},y:${bbox.y0},w:${bbox.x1 - bbox.x0},h:${bbox.y1 - bbox.y0}` : null,
         extractionMethod: extractionMethod,
         confidence: avgConf,
         validatedByUser: false
@@ -692,12 +746,48 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
 
           let quality = 'VALID';
           let status = 'NORMAL';
+          const validationFlags = [];
+
+          // Physiological plausibility bounds per parameter
+          const PHYSIOLOGICAL_BOUNDS = {
+            pcv: { max: 60, min: 10, unit: '%' },
+            hemoglobin: { min: 3, max: 25, unit: 'g/dL' },
+            wbc: { min: 500, max: 100000, unit: 'cells/µL' },
+            rbc: { min: 1.0, max: 8.0, unit: 'million/µL' },
+            platelets: { min: 10, max: 1000, unit: 'lakhs/µL' },
+            mcv: { min: 50, max: 120, unit: 'fL' },
+            mch: { min: 15, max: 40, unit: 'pg' },
+            mchc: { min: 20, max: 40, unit: 'g/dL' },
+            glucose: { min: 20, max: 600, unit: 'mg/dL' },
+            creatinine: { min: 0.1, max: 20, unit: 'mg/dL' },
+            bun: { min: 1, max: 100, unit: 'mg/dL' },
+            alt: { min: 1, max: 2000, unit: 'U/L' },
+            ast: { min: 1, max: 2000, unit: 'U/L' },
+            total_bilirubin: { min: 0.1, max: 30, unit: 'mg/dL' },
+            hba1c: { min: 3.0, max: 20.0, unit: '%' },
+            bmi: { min: 10, max: 70, unit: 'kg/m²' },
+            age: { min: 1, max: 120, unit: 'years' }
+          };
+
+          const bounds = PHYSIOLOGICAL_BOUNDS[normalizedName];
 
           if (numVal < 0) {
             quality = 'INVALID';
             status = 'INVALID';
-          } else if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
-            quality = 'SUSPICIOUS';
+            validationFlags.push('negative_value');
+          } else if (bounds) {
+            if (numVal < bounds.min || numVal > bounds.max) {
+              quality = 'SUSPICIOUS';
+              validationFlags.push(`value_outside_physiological_range(${bounds.min}-${bounds.max}${bounds.unit})`);
+            }
+            if (normalizedName === 'pcv' && numVal > 60) {
+              validationFlags.push('hematocrit_above_60_percent_physiologically_impossible');
+            }
+          }
+
+          if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
+            if (quality === 'VALID') quality = 'SUSPICIOUS';
+            validationFlags.push('high_value_flagged');
             status = 'HIGH';
           } else if (normalizedName === 'glucose' && numVal >= 126) {
             status = 'HIGH';
@@ -707,6 +797,15 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
             status = 'LOW';
           }
 
+          if (numVal > 100 && Number.isInteger(numVal) && normalizedName !== 'wbc' && normalizedName !== 'platelets') {
+            const shifted = numVal / 10;
+            const shiftedBounds = bounds ? bounds : {};
+            if (shifted >= (shiftedBounds.min || 0) && shifted <= (shiftedBounds.max || Infinity)) {
+              validationFlags.push(`possible_decimal_shift(value_${numVal}_may_be_${shifted})`);
+              if (quality === 'VALID') quality = 'SUSPICIOUS';
+            }
+          }
+
           const labItem = {
             id: `LR-${reportIdPrefix(extractionMethod)}-${idCounter++}`,
             section: currentSection,
@@ -714,12 +813,15 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
             normalizedName: normalizedName,
             testName: rawName,
             value: numVal,
+            originalValue: numVal,
             unit: unit,
             units: unit,
             referenceRange: parseReferenceRangeStruct(match[4] || ''),
             status: status,
             quality: quality,
+            validationFlags: validationFlags,
             source: { page: 1, text: lineText },
+            sourceLocation: null,
             extractionMethod: extractionMethod,
             confidence: null,
             validatedByUser: false
