@@ -18,6 +18,9 @@ const API_BASE = getApiBase();
 // Clinical fallback data has been removed. The backend is the sole source of truth for
 // predictions, reports, XAI, evidence, and risk assessments. API failures now propagate
 // as errors instead of being silently substituted with fabricated clinical data.
+//
+// DEMO_* constants below are strictly isolated preview/seeded data. They are NEVER
+// mixed with real patient data and are explicitly labelled as demo content.
 
 // Helper for HTTP requests — never substitutes fabricated clinical data on failure
 function getAuthToken() {
@@ -369,8 +372,8 @@ export const riskService = {
     const data = await request(`/reports/${reportId}/risk`);
     const risk = data.risk || {};
     const uncertainty = data.uncertainty || {};
-    const score = risk.riskScore !== undefined ? risk.riskScore : (risk.score !== undefined ? risk.score : 0);
-    const overallRisk = (risk.overallRisk || risk.level || (score >= 70 ? 'HIGH' : score >= 40 ? 'MODERATE' : 'LOW')).toUpperCase();
+    const score = risk.riskScore !== undefined ? risk.riskScore : (risk.score !== undefined ? risk.score : null);
+    const overallRisk = (risk.overallRisk || risk.level || (score !== null && score >= 70 ? 'HIGH' : score !== null && score >= 40 ? 'MODERATE' : 'LOW')).toUpperCase();
 
     return {
       risk: {
@@ -380,19 +383,19 @@ export const riskService = {
         overallRisk: overallRisk,
         contributingParameters: Array.isArray(risk.contributingParameters) && risk.contributingParameters.length > 0
           ? risk.contributingParameters
-          : ['Clinical laboratory parameters within expected baseline variance'],
+          : [],
         recommendations: Array.isArray(risk.recommendations) && risk.recommendations.length > 0
           ? risk.recommendations
-          : ['Continue routine clinical monitoring and follow-up']
+          : []
       },
       uncertainty: {
-        confidence: uncertainty.confidence ?? 95.0,
-        margin: uncertainty.margin ?? 5.0,
-        extractionConfidence: uncertainty.extractionConfidence ?? 98.5,
-        predictionConfidence: uncertainty.predictionConfidence ?? (score >= 50 ? score : 100 - score),
-        evidenceConsistency: uncertainty.evidenceConsistency || 'High (Consistent with Clinical Guidelines)',
-        dataCompleteness: uncertainty.dataCompleteness ?? 100,
-        decisionSupportStatus: uncertainty.decisionSupportStatus || 'VALIDATED — Decision Support Active',
+        confidence: uncertainty.confidence !== undefined ? uncertainty.confidence : null,
+        margin: uncertainty.margin !== undefined ? uncertainty.margin : null,
+        extractionConfidence: uncertainty.extractionConfidence !== undefined ? uncertainty.extractionConfidence : null,
+        predictionConfidence: uncertainty.predictionConfidence !== undefined ? uncertainty.predictionConfidence : null,
+        evidenceConsistency: uncertainty.evidenceConsistency !== undefined ? uncertainty.evidenceConsistency : null,
+        dataCompleteness: uncertainty.dataCompleteness !== undefined ? uncertainty.dataCompleteness : null,
+        decisionSupportStatus: uncertainty.decisionSupportStatus !== undefined ? uncertainty.decisionSupportStatus : null,
         isAbstain: Boolean(uncertainty.isAbstain)
       }
     };
@@ -401,22 +404,29 @@ export const riskService = {
 
 export const trendService = {
   async getTrends(patientId) {
-    return DEMO_TRENDS;
+    const data = await request(`/trends?patientId=${patientId}`);
+    return data.trends || data;
   }
 };
 
 export const reviewService = {
   async submitReview(data) {
-    return { success: true, message: 'Doctor review saved successfully' };
+    const result = await request('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return { success: true, message: 'Doctor review saved successfully', ...result };
   }
 };
 
 export const evaluationService = {
   async getMetrics() {
-    return DEMO_EVALUATION;
+    const data = await request("/evaluation/metrics");
+    return data.metrics || data;
   },
   async getSystemStatus() {
-    return DEMO_SYSTEM_STATUS;
+    const data = await request("/system/status");
+    return data.status || data;
   }
 };
 

@@ -35,9 +35,11 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 } // 15 MB max
 });
 
-// Helper: check if the authenticated user owns the report (or report is unowned legacy data)
+// Helper: check if the authenticated user owns the report
+// Legacy unowned reports (no created_by) are NOT accessible to any user.
+// Only the doctor who created the report (created_by === userId) may access it.
 function reportBelongsToUser(report, userId) {
-  if (!report || !report.created_by) return true; // legacy unowned data — allow access
+  if (!report || !report.created_by || !userId) return false;
   return report.created_by === userId;
 }
 
@@ -103,34 +105,11 @@ router.post('/upload', singleFileUpload, async (req, res) => {
       { tsv: extractionResult.tsv }
     );
 
-    // Save raw debug OCR output to server/debug/ocr-debug-<reportId>.txt
-    try {
-      const debugDir = path.join(__dirname, '..', 'debug');
-      if (!fs.existsSync(debugDir)) {
-        fs.mkdirSync(debugDir, { recursive: true });
-      }
-      const debugFilePath = path.join(debugDir, `ocr-debug-${reportId}.txt`);
-      fs.writeFileSync(debugFilePath, rawOcrText, 'utf8');
-    } catch (dErr) {
-      console.warn('[Upload] Failed to save debug OCR file:', dErr.message);
-    }
-
     const ocrLinesCount = rawOcrText ? rawOcrText.split(/\r?\n/).length : 0;
     const candidatesCount = labResults.length + discardedCandidates.length;
 
-    console.log(`\n==================================================`);
-    console.log(`FILE: ${file.originalname}`);
-    console.log(`MIME: ${file.mimetype}`);
-    console.log(`SIZE: ${file.size} bytes`);
-    console.log(`DIMENSIONS: ${JSON.stringify(extractionResult.dimensions || {})}`);
-    console.log(`OCR ENGINE USED: ${extractionResult.method}`);
-    console.log(`OCR ENGINE USED: ${extractionResult.method}`);
-    console.log(`OCR RAW TEXT LENGTH: ${rawOcrText.length}`);
-    console.log(`OCR LINE COUNT: ${ocrLinesCount}`);
-    console.log(`OCR CANDIDATES: ${candidatesCount}`);
-    console.log(`PARSED LAB RESULTS: ${labResults.length}`);
-    console.log(`REJECTED: ${discardedCandidates.length}`);
-    console.log(`==================================================\n`);
+    // Non-sensitive diagnostics only — never log raw OCR text, patient names, or lab values
+    console.log(`\n[Upload] Report ${reportId}: method=${extractionResult.method} textLen=${rawOcrText.length} lines=${ocrLinesCount} results=${labResults.length} rejected=${discardedCandidates.length}\n`);
 
     // Disease Detection from User Form, Filename, Symptoms, or Extracted Test Results
     let detectedDisease = (req.body.disease || '').toLowerCase().trim();
@@ -346,6 +325,8 @@ router.get('/:id/prediction', async (req, res) => {
     const readiness = computeDiseaseModelReadiness(report, requestedDisease);
     let pred = getPredictionRecord(req.params.id);
 
+    // Never auto-generate predictions on GET. Only return stored predictions.
+    // If no stored prediction exists, return PREDICTION_NOT_AVAILABLE.
     const predDisease = (pred && (pred.disease || (pred.modelInfo && pred.modelInfo.disease))) ? (pred.disease || pred.modelInfo.disease).toLowerCase() : '';
     const mName = (pred && pred.modelName ? pred.modelName : '').toLowerCase();
 
@@ -355,23 +336,11 @@ router.get('/:id/prediction', async (req, res) => {
       (requestedDisease === 'diabetes' && !mName.includes('diabetes'))
     ));
 
-    // If report is READY and (no prediction is saved OR disease mismatch OR stored prediction has 0 probability), automatically generate & persist it
-    if ((!pred || diseaseMismatch || pred.probability === 0) && readiness.status === 'READY') {
-      try {
-        const autoPred = await generatePredictionForReport(report, readiness, requestedDisease);
-        if (autoPred && (autoPred.status === 'SUCCESS' || autoPred.status === 'UNAVAILABLE')) {
-          savePredictionRecord(autoPred);
-          pred = autoPred;
-        }
-      } catch (autoErr) {
-        console.warn('[ReportsRoute] Auto-prediction generation failed on GET:', autoErr.message);
-      }
-    } else if (diseaseMismatch) {
-      // Stored prediction belongs to a different disease and current disease is not ready
+    if (diseaseMismatch) {
       pred = null;
     }
 
-    // Case D: Report exists and valid prediction persisted
+    // Case D: Report exists and valid prediction persisted (never auto-generated)
     if (pred) {
       const isPositive = pred.predictedClass && (pred.predictedClass.includes('Positive') || pred.predictedClass.includes('Elevated') || pred.predictedClass.includes('Confirmed') || (typeof pred.probability === 'number' && pred.probability >= 0.5));
       const posPct = typeof pred.displayProbabilityPct === 'number'
@@ -870,10 +839,8 @@ router.get('/:id/xai', (req, res) => {
           : defaultSummary,
         featureImportance,
         topContributingFactors: topContributingFactors.length > 0 ? topContributingFactors : ['No high-positive risk factors detected.'],
-        supportingFactors: isChikungunya
-          ? ['CDC Arboviral Disease Diagnosis Guidance', 'WHO Guidelines for Clinical Management of Chikungunya']
-          : ['Authoritative LinearExplainer baseline model.'],
-        factorsReducingConfidence: factorsReducingConfidence.length > 0 ? factorsReducingConfidence : ['No significant risk-reducing factors detected.'],
+        supportingFactors: [],
+        factorsReducingConfidence: factorsReducingConfidence.length > 0 ? factorsReducingConfidence : [],
         features: shapList,
         baseValue: pred && pred.modelInfo ? pred.modelInfo.baseValue || 0 : 0
       }
