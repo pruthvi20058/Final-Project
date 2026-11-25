@@ -235,19 +235,17 @@ router.get('/:id/extraction-debug', (req, res) => {
     const rawText = report.raw_ocr_text || report.rawOcrText || '';
     const parsed = parseLabValuesFromText(rawText, 'DEBUG');
 
+    // Non-sensitive diagnostics only — never return raw OCR text, patient names, or parsed lab values
     return res.json({
       success: true,
       reportId: report.id,
       originalFilename: report.original_filename || report.filename,
+      extractionMethod: 'DEBUG',
       rawOcrTextLength: rawText ? rawText.length : 0,
       totalExtracted: parsed.results ? parsed.results.length : 0,
-      ocrWords: parsed.ocrWords || [],
-      detectedTables: parsed.detectedTables || [],
-      detectedRows: parsed.detectedRows || [],
-      parsedResults: parsed.results || [],
-      rejectedCandidates: parsed.discardedCandidates || [],
-      discardedCandidates: parsed.discardedCandidates || [],
-      patientDemographics: parsed.patientDemographics || {}
+      acceptedParameterCount: parsed.results ? parsed.results.length : 0,
+      rejectedCandidateCount: parsed.discardedCandidates ? parsed.discardedCandidates.length : 0,
+      errorCode: null
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -531,15 +529,50 @@ router.post('/:id/predict', async (req, res) => {
   }
 });
 
-// 6. POST /api/reports/disease-predict — Multi-disease ML prediction for Dengue, Malaria, Chikungunya, Typhoid
+// 6. POST /api/reports/disease-predict — Independent symptom-based disease assessment
+// NOTE: This endpoint does NOT use uploaded laboratory reports. It performs symptom-based
+// inference only and must NOT be presented as a verified laboratory-report prediction.
+// For report-based predictions, use POST /api/reports/:id/predict (requires VERIFIED report).
+const SUPPORTED_DISEASES = ['diabetes', 'chikungunya', 'dengue', 'malaria', 'typhoid'];
+
 router.post('/disease-predict', async (req, res) => {
   try {
     const { disease, ...features } = req.body;
-    if (!disease) {
-      return res.status(400).json({ success: false, error: 'disease parameter is required' });
+
+    if (!disease || typeof disease !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_DISEASE', message: 'A valid disease parameter is required.' }
+      });
     }
-    const result = await runDiseaseInference({ disease, ...features });
-    return res.json({ success: true, ...result });
+
+    const diseaseLower = disease.toLowerCase().trim();
+    if (!SUPPORTED_DISEASES.includes(diseaseLower)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'UNSUPPORTED_DISEASE', message: `Disease '${disease}' is not supported. Supported: ${SUPPORTED_DISEASES.join(', ')}.` }
+      });
+    }
+
+    // Validate features are provided and numeric where applicable
+    const featureEntries = Object.entries(features);
+    if (featureEntries.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_FEATURES', message: 'At least one clinical feature is required for symptom-based assessment.' }
+      });
+    }
+
+    const result = await runDiseaseInference({ disease: diseaseLower, ...features });
+
+    return res.json({
+      success: true,
+      assessmentType: 'symptom-based',
+      dataSource: 'user-submitted symptoms',
+      disease: diseaseLower,
+      message: 'Symptom-based disease assessment. This is NOT a verified laboratory-report prediction. For lab-report-based predictions, upload and verify a report, then use POST /api/reports/:id/predict.',
+      ...result
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -940,63 +973,78 @@ router.get('/:id/risk', (req, res) => {
     const abnormalLabs = reportLabResults.filter(l => l.status === 'HIGH' || l.status === 'ABNORMAL' || l.status === 'LOW');
     const labParams = abnormalLabs.map(l => `${l.testName || l.rawName}: ${l.value} ${l.units || ''} (${l.status})`);
 
-    let riskScore = 0;
-    let overallRisk = 'LOW';
+    let riskScore = null;
+    let overallRisk = null;
     let contributingParams = [];
     let recommendations = [];
-    let extractionConf = Math.round(report.ocrConfidence || report.ocr_confidence || 98.5);
-    let predictionConf = 0;
-    let evidenceConsistency = 'Guideline Reference Available (ADA Standards of Care)';
-    let dataCompleteness = 100;
-    let decisionSupportStatus = 'ADVISORY — Screening In Progress';
+    let extractionConf = report.ocrConfidence !== undefined && report.ocrConfidence !== null
+      ? Math.round(report.ocrConfidence)
+      : null;
+    let predictionConf = null;
+    let evidenceConsistency = null;
+    let dataCompleteness = null;
+    let decisionSupportStatus = null;
     let isAbstain = false;
 
     if (pred) {
       riskScore = typeof pred.displayProbabilityPct === 'number'
         ? pred.displayProbabilityPct
-        : (typeof pred.probability === 'number' ? Math.round(pred.probability * 100) : (pred.risk?.score || 0));
-      overallRisk = (pred.risk?.overallRisk || (riskScore >= 70 ? 'HIGH' : riskScore >= 40 ? 'MODERATE' : 'LOW')).toUpperCase();
+        : (typeof pred.probability === 'number' ? Math.round(pred.probability * 100) : null);
+      overallRisk = (pred.risk?.overallRisk || (riskScore !== null && riskScore >= 70 ? 'HIGH' : riskScore !== null && riskScore >= 40 ? 'MODERATE' : 'LOW')).toUpperCase();
 
       if (pred.risk?.contributingParameters && pred.risk.contributingParameters.length > 0) {
         contributingParams = pred.risk.contributingParameters;
       } else {
         if (labParams.length > 0) contributingParams.push(...labParams);
         if (pred.topPrediction?.reasoning) contributingParams.push(pred.topPrediction.reasoning);
-        if (contributingParams.length === 0) contributingParams.push('All evaluated clinical parameters are within baseline reference ranges.');
       }
 
       if (pred.risk?.recommendations && pred.risk.recommendations.length > 0) {
         recommendations = pred.risk.recommendations;
       } else {
-        if (overallRisk === 'HIGH' || overallRisk === 'CRITICAL') {
+        // Disease-specific recommendations — never assume diabetes
+        const disease = (pred.disease || report.disease || '').toLowerCase();
+        if (disease === 'chikungunya') {
           recommendations = [
-            'Immediate physician or specialist clinical evaluation recommended for diagnostic confirmation.',
-            'Schedule confirmatory diagnostic HbA1c and comprehensive metabolic testing within 30 to 60 days.',
-            'Initiate structured patient diabetes self-management education, lifestyle modification, and blood glucose monitoring.'
+            'Consult a physician for clinical evaluation of febrile illness.',
+            'Monitor for signs of severe chikungunya including persistent high fever and severe joint pain.',
+            'Maintain hydration and rest; avoid NSAIDs until dengue is ruled out.'
           ];
-        } else if (overallRisk === 'MODERATE') {
+        } else if (disease === 'dengue') {
           recommendations = [
-            'Perform a 2-hour 75g Oral Glucose Tolerance Test (OGTT) for diagnostic clarification.',
-            'Engage patient in medical nutrition therapy and structured physical activity counseling.',
-            'Repeat fasting plasma glucose and lipid screening in 3 to 6 months.'
+            'Seek immediate medical evaluation for dengue warning signs (severe abdominal pain, persistent vomiting, mucosal bleeding).',
+            'Monitor platelet count and hematocrit regularly as advised by a physician.',
+            'Maintain adequate fluid intake; avoid aspirin and NSAIDs.'
+          ];
+        } else if (disease === 'malaria') {
+          recommendations = [
+            'Seek urgent medical care for malaria diagnosis and treatment.',
+            'Do not delay antimalarial therapy if malaria is suspected or confirmed.',
+            'Follow up with a physician for complete treatment course and prevention advice.'
+          ];
+        } else if (disease === 'typhoid') {
+          recommendations = [
+            'Consult a physician for enteric fever evaluation and possible blood culture.',
+            'Complete the full course of prescribed antibiotics if typhoid is confirmed.',
+            'Practice strict hand hygiene and safe food/water precautions.'
           ];
         } else {
+          // Diabetes or unknown disease — general metabolic screening guidance only
           recommendations = [
-            'Maintain standard routine annual metabolic and wellness screening.',
-            'Continue balanced nutritional patterns and regular cardiovascular exercise.'
+            'Complete missing laboratory parameters to enable validated ML prediction.',
+            'Review current laboratory findings with attending physician.'
           ];
         }
       }
 
-      predictionConf = pred.uncertainty?.predictionConfidence || Math.round(riskScore >= 50 ? riskScore : 100 - riskScore);
-      evidenceConsistency = pred.uncertainty?.evidenceConsistency || 'High (ADA 2024 & KDIGO Guidelines)';
-      decisionSupportStatus = pred.uncertainty?.decisionSupportStatus || 'VALIDATED — Decision Support Active';
+      predictionConf = pred.uncertainty?.predictionConfidence !== undefined ? pred.uncertainty.predictionConfidence : null;
+      evidenceConsistency = pred.uncertainty?.evidenceConsistency !== undefined ? pred.uncertainty.evidenceConsistency : null;
+      decisionSupportStatus = pred.uncertainty?.decisionSupportStatus !== undefined ? pred.uncertainty.decisionSupportStatus : null;
       isAbstain = Boolean(pred.uncertainty?.isAbstain);
     } else {
-      const demographics = report.patientDemographics || {};
       const readiness = computeModelReadiness(report);
       const availCount = readiness.availableFeatures !== undefined ? readiness.availableFeatures : (readiness.availableCount || 0);
-      dataCompleteness = Math.round((availCount / 8) * 100);
+      dataCompleteness = availCount > 0 ? Math.round((availCount / 8) * 100) : null;
 
       const glucoseLab = reportLabResults.find(l => l.normalizedName === 'glucose' || /glucose/i.test(l.testName));
       const hba1cLab = reportLabResults.find(l => l.normalizedName === 'hba1c' || /hba1c/i.test(l.testName));
@@ -1013,20 +1061,20 @@ router.get('/:id/risk', (req, res) => {
       } else if (abnormalLabs.length > 0) {
         riskScore = Math.min(60, 20 + abnormalLabs.length * 10);
         overallRisk = riskScore >= 40 ? 'MODERATE' : 'LOW';
-      } else {
+      } else if (reportLabResults.length > 0) {
         riskScore = 15;
         overallRisk = 'LOW';
       }
 
-      contributingParams = labParams.length > 0 ? labParams : ['Laboratory parameters recorded and awaiting completed feature panel.'];
+      contributingParams = labParams.length > 0 ? labParams : [];
       recommendations = [
         'Complete missing laboratory parameters to enable validated ML prediction.',
         'Review current laboratory findings with attending physician.'
       ];
-      predictionConf = 0;
-      evidenceConsistency = 'Guideline Reference Available (ADA Standards of Care)';
+      predictionConf = null;
+      evidenceConsistency = null;
       decisionSupportStatus = readiness.status === 'INSUFFICIENT_DATA'
-        ? 'ADVISORY — Incomplete Pima Feature Panel'
+        ? 'ADVISORY — Incomplete Feature Panel'
         : 'PENDING — Model Ready for Execution';
       isAbstain = readiness.status === 'INSUFFICIENT_DATA';
     }
@@ -1042,8 +1090,8 @@ router.get('/:id/risk', (req, res) => {
         recommendations: recommendations
       },
       uncertainty: {
-        confidence: 95.0,
-        margin: 5.0,
+        confidence: null,
+        margin: null,
         extractionConfidence: extractionConf,
         predictionConfidence: predictionConf,
         evidenceConsistency: evidenceConsistency,

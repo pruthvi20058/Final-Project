@@ -70,11 +70,11 @@ export default function RiskUncertaintyPage({ reportId = 'REP-9001', onNavigate,
     : ['Continue routine clinical monitoring and follow-up'];
   const overallRisk = (risk.overallRisk || risk.level || 'LOW').toUpperCase();
   const riskScore = risk.riskScore !== undefined ? risk.riskScore : (risk.score !== undefined ? risk.score : 0);
-  const extractionConfidence = uncertainty.extractionConfidence !== undefined ? uncertainty.extractionConfidence : 98.5;
-  const predictionConfidence = uncertainty.predictionConfidence !== undefined ? uncertainty.predictionConfidence : (riskScore >= 50 ? riskScore : 100 - riskScore);
-  const evidenceConsistency = uncertainty.evidenceConsistency || 'High (Consistent with ADA 2024 Guidelines)';
-  const dataCompleteness = uncertainty.dataCompleteness !== undefined ? uncertainty.dataCompleteness : 100;
-  const decisionSupportStatus = uncertainty.decisionSupportStatus || 'VALIDATED — Decision Support Active';
+  const extractionConfidence = uncertainty.extractionConfidence !== undefined && uncertainty.extractionConfidence !== null ? uncertainty.extractionConfidence : null;
+  const predictionConfidence = uncertainty.predictionConfidence !== undefined && uncertainty.predictionConfidence !== null ? uncertainty.predictionConfidence : null;
+  const evidenceConsistency = uncertainty.evidenceConsistency !== undefined && uncertainty.evidenceConsistency !== null ? uncertainty.evidenceConsistency : null;
+  const dataCompleteness = uncertainty.dataCompleteness !== undefined && uncertainty.dataCompleteness !== null ? uncertainty.dataCompleteness : null;
+  const decisionSupportStatus = uncertainty.decisionSupportStatus !== undefined && uncertainty.decisionSupportStatus !== null ? uncertainty.decisionSupportStatus : null;
   const reportFilename = report?.filename || report?.original_filename || `Report #${reportId}`;
   const shouldAbstain = isAbstain || uncertainty.isAbstain;
 
@@ -216,41 +216,49 @@ export default function RiskUncertaintyPage({ reportId = 'REP-9001', onNavigate,
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: 4 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>1. OCR Extraction Confidence</span>
-                <strong style={{ color: '#10b981' }}>{extractionConfidence}%</strong>
+                <strong style={{ color: '#10b981' }}>{extractionConfidence !== null ? extractionConfidence + '%' : 'N/A'}</strong>
               </div>
-              <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, Math.max(0, extractionConfidence))}%`, height: '100%', background: '#10b981' }} />
-              </div>
+              {extractionConfidence !== null && (
+                <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, Math.max(0, extractionConfidence))}%`, height: '100%', background: '#10b981' }} />
+                </div>
+              )}
             </div>
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: 4 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>2. ML Model Prediction Confidence</span>
-                <strong style={{ color: '#00d4aa' }}>{predictionConfidence}%</strong>
+                <strong style={{ color: '#00d4aa' }}>{predictionConfidence !== null ? predictionConfidence + '%' : 'N/A'}</strong>
               </div>
-              <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, Math.max(0, predictionConfidence))}%`, height: '100%', background: '#00d4aa' }} />
-              </div>
+              {predictionConfidence !== null && (
+                <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, Math.max(0, predictionConfidence))}%`, height: '100%', background: '#00d4aa' }} />
+                </div>
+              )}
             </div>
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: 4 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>3. RAG Evidence Consistency</span>
-                <strong style={{ color: '#3b82f6' }}>{evidenceConsistency}</strong>
+                <strong style={{ color: '#3b82f6' }}>{evidenceConsistency !== null ? evidenceConsistency : 'N/A'}</strong>
               </div>
-              <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: '92%', height: '100%', background: '#3b82f6' }} />
-              </div>
+              {evidenceConsistency !== null && (
+                <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: '92%', height: '100%', background: '#3b82f6' }} />
+                </div>
+              )}
             </div>
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: 4 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>4. Clinical Data Completeness</span>
-                <strong style={{ color: '#10b981' }}>{dataCompleteness}%</strong>
+                <strong style={{ color: '#10b981' }}>{dataCompleteness !== null ? dataCompleteness + '%' : 'N/A'}</strong>
               </div>
-              <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, Math.max(0, dataCompleteness))}%`, height: '100%', background: '#10b981' }} />
-              </div>
+              {dataCompleteness !== null && (
+                <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, Math.max(0, dataCompleteness))}%`, height: '100%', background: '#10b981' }} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -262,7 +270,7 @@ export default function RiskUncertaintyPage({ reportId = 'REP-9001', onNavigate,
               OVERALL DECISION SUPPORT STATUS
             </span>
             <strong style={{ fontSize: '1.05rem', color: '#00d4aa' }}>
-              ✓ {decisionSupportStatus}
+              ✓ {decisionSupportStatus !== null ? decisionSupportStatus : 'N/A'}
             </strong>
           </div>
         </div>

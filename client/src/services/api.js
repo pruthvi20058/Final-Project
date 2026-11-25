@@ -113,67 +113,6 @@ export const DEMO_PATIENTS = [
   }
 ];
 
-export const DEMO_TRENDS = [
-  { date: '2026-01-15', HbA1c: 6.2, Glucose: 124, Hemoglobin: 13.5 },
-  { date: '2026-03-20', HbA1c: 6.7, Glucose: 138, Hemoglobin: 13.1 },
-  { date: '2026-06-10', HbA1c: 7.1, Glucose: 152, Hemoglobin: 12.6 },
-  { date: '2026-08-18', HbA1c: 7.4, Glucose: 168, Hemoglobin: 12.1 }
-];
-
-export const DEMO_REPORT_COMPARISON = [
-  { testName: 'HbA1c (%)', previousValue: 7.1, currentValue: 7.4, unit: '%', changePercent: +4.2, trend: 'up', isAbnormal: true },
-  { testName: 'Glucose (mg/dL)', previousValue: 152, currentValue: 168, unit: 'mg/dL', changePercent: +10.5, trend: 'up', isAbnormal: true },
-  { testName: 'Hemoglobin (g/dL)', previousValue: 12.6, currentValue: 12.1, unit: 'g/dL', changePercent: -3.9, trend: 'down', isAbnormal: true },
-  { testName: 'WBC Count (cells/µL)', previousValue: 8200, currentValue: 8500, unit: 'cells/µL', changePercent: +3.6, trend: 'stable', isAbnormal: false }
-];
-
-export const DEMO_EVIDENCE = {
-  id: 'EVI-9001',
-  predictionId: 'PRED-9001',
-  consistencyScore: 94,
-  consistencyStatus: 'high',
-  sources: [
-    {
-      id: 'DOC-1',
-      title: 'ADA Standards of Medical Care in Diabetes — 2026 Guidelines',
-      type: 'Clinical Guideline',
-      section: 'Section 2: Classification and Diagnosis of Diabetes',
-      summary: 'HbA1c ≥ 6.5% or Fasting Plasma Glucose ≥ 126 mg/dL confirms diagnosis of Diabetes Mellitus.',
-      link: 'https://diabetesjournals.org/care',
-      relevanceScore: 96
-    }
-  ]
-};
-
-export const DEMO_SYSTEM_STATUS = {
-  backend: 'Online',
-  mlModel: 'Loaded (Random Forest)',
-  ocrEngine: 'Ready (Tesseract & PDF Parser)',
-  ragEngine: 'Ready (ADA & ESC Guidelines)',
-  database: 'Connected (SQLite)',
-  llmProvider: 'Connected',
-  lastChecked: 'Just now'
-};
-
-export const DEMO_EVALUATION = {
-  datasetName: 'MediAgent Clinical Benchmark Dataset v1.0 (1,200 Cases)',
-  totalSamples: 1200,
-  modelAccuracy: 1.0,
-  precision: 1.0,
-  recall: 1.0,
-  f1Score: 1.0,
-  rocAuc: 1.0,
-  brierScore: 0.012,
-  calibrationError: 0.008,
-  top3Accuracy: 1.0,
-  ocrMetrics: {
-    ocrAccuracy: 0.984,
-    valueExtractionAccuracy: 0.972,
-    unitExtractionAccuracy: 0.988,
-    referenceRangeAccuracy: 0.966
-  }
-};
-
 export const CLINICAL_ONTOLOGY = [
   { testName: 'Age', defaultUnits: 'years', defaultRange: '18–120', low: 18, high: 120, normalizedName: 'age' },
   { testName: 'Patient Age', defaultUnits: 'years', defaultRange: '18–120', low: 18, high: 120, normalizedName: 'age' },
