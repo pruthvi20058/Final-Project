@@ -5,15 +5,27 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "test": "JWT_SECRET=test-secret-key-for-testing-only-32chars node tests/test-backend-comprehensive.js && node tests/test-e2e-workflows.js && node tests/test-ocr-lab-extraction.js && node tests/test-rag-evaluation.js && node tests/test-security.js && node tests/test-performance.js",
+    "test:backend": "JWT_SECRET=test-secret-key-for-testing-only-32chars node tests/test-backend-comprehensive.js",
+    "test:e2e": "node tests/test-e2e-workflows.js",
+    "test:ocr": "node tests/test-ocr-lab-extraction.js",
+    "test:rag": "node tests/test-rag-evaluation.js",
+    "test:security": "node tests/test-security.js",
+    "test:performance": "node tests/test-performance.js",
+    "test:python": "python3 tests/test-ml-model-validation.py && python3 tests/test-nlp-multilingual.py"
   },
   "engines": {
     "node": "20.x"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "pdf-parse": "^1.1.1",
     "sharp": "^0.34.5",

@@ -8,7 +8,12 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && node index.js",
     "client": "cd client && npm run dev",
-    "install:all": "npm install && cd server && npm install && cd ../client && npm install"
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "test": "npm run test:backend && npm run test:python",
+    "test:backend": "cd server && JWT_SECRET=test-secret-key-for-testing-only-32chars node tests/test-backend-comprehensive.js && node tests/test-e2e-workflows.js && node tests/test-ocr-lab-extraction.js && node tests/test-rag-evaluation.js && node tests/test-security.js && node tests/test-performance.js",
+    "test:frontend": "cd client && npm run test",
+    "test:python": "python3 server/tests/test-ml-model-validation.py && python3 server/tests/test-nlp-multilingual.py",
+    "test:all": "npm run test:backend && npm run test:frontend && npm run test:python"
   },
   "engines": {
     "node": "20.x"
