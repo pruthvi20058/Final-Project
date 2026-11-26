@@ -32,13 +32,6 @@ Backend tests use built-in Node.js `assert` — no third-party framework introdu
 
 > Note: The Express server cannot start in this sandbox because `better-sqlite3` is a native C++ module that fails to compile. All tests exercise modules directly via `require()` rather than HTTP calls. This is a sandbox limitation, not a production limitation.
 
-**Test shims** (created to enable server-side testing without a running Express server):
-- `server/node_modules/jsonwebtoken/index.js` — JWT sign/verify shim
-- `server/node_modules/bcryptjs/index.js` — bcrypt hash/compare shim
-- `server/node_modules/better-sqlite3/index.js` — SQLite shim with `COUNT(*)` aggregate support
-
-> Note: The Express server cannot start in this sandbox because `better-sqlite3` is a native C++ module that fails to compile. All tests exercise modules directly via `require()` rather than HTTP calls. This is a sandbox limitation, not a production limitation.
-
 ---
 
 ## 2. Backend Comprehensive Tests
@@ -336,7 +329,7 @@ The CI workflow installs backend and frontend dependencies, runs all test suites
 
 ---
 
-## 11. Test Summary
+## 12. Test Summary
 
 | Suite | File | Result |
 |-------|------|--------|
@@ -359,7 +352,7 @@ No tests are silently skipped, disabled, or removed.
 
 ---
 
-## 12. How to Run Tests
+## 13. How to Run Tests
 
 ### Root Project (all tests)
 
@@ -426,7 +419,7 @@ All tests run automatically via `.github/workflows/test.yml` on push and pull re
 
 ---
 
-## 13. Related Documents
+## 14. Related Documents
 
 - `docs/TEST_INVENTORY.md` — Inventory of all existing tests and gaps (pre-Task 9)
 - `docs/KNOWN_LIMITATIONS.md` — Known system limitations and pre-existing issues
@@ -436,7 +429,7 @@ All tests run automatically via `.github/workflows/test.yml` on push and pull re
 
 ---
 
-## 14. Compliance with Task 9 Constraints
+## 15. Compliance with Task 9 Constraints
 
 | Constraint | Status |
 |------------|--------|
