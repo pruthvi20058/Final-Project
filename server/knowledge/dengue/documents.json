@@ -1,0 +1,167 @@
+[
+  {
+    "id": "who-2026-dengue",
+    "title": "Dengue and severe dengue — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-15",
+    "url": "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+    "documentType": "Fact Sheet",
+    "topic": "dengue_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "dengue",
+    "chunks": [
+      {
+        "chunkId": "who-2026-dengue-chunk-0",
+        "chunkIndex": 0,
+        "text": "Dengue is a viral infection transmitted to humans through the bite of infected Aedes mosquitoes. About half of the world's population is now at risk of dengue, with an estimated 100–400 million infections occurring each year.",
+        "startChar": 0,
+        "endChar": 230,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "who-2026-dengue-chunk-1",
+        "chunkIndex": 1,
+        "text": "Most people with dengue have mild or no symptoms and will get better in 1–2 weeks. Rarely, dengue can be severe and lead to death. Symptoms typically begin 4–10 days after infection and last 2–7 days.",
+        "startChar": 230,
+        "endChar": 442,
+        "page": null,
+        "section": "Symptoms and course"
+      },
+      {
+        "chunkId": "who-2026-dengue-chunk-2",
+        "chunkIndex": 2,
+        "text": "Severe dengue symptoms often come after the fever has gone away and include severe abdominal pain, persistent vomiting, rapid breathing, bleeding gums or nose, fatigue, restlessness, blood in vomit or stool, and being very thirsty.",
+        "startChar": 442,
+        "endChar": 724,
+        "page": null,
+        "section": "Severe dengue warning signs"
+      },
+      {
+        "chunkId": "who-2026-dengue-chunk-3",
+        "chunkIndex": 3,
+        "text": "There is no specific treatment for dengue. The focus is on treating pain symptoms and monitoring for complications. Acetaminophen (paracetamol) can be used for pain; NSAIDs such as ibuprofen and aspirin should be avoided because they can increase bleeding risk.",
+        "startChar": 724,
+        "endChar": 969,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "who-2026-dengue",
+      "title": "Dengue and severe dengue — WHO Fact Sheet",
+      "organization": "World Health Organization",
+      "disease": "dengue",
+      "topic": "dengue_overview",
+      "documentType": "Fact Sheet",
+      "publicationDate": "2026-01-15",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "cdc-2026-dengue",
+    "title": "Dengue — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-03-01",
+    "url": "https://www.cdc.gov/dengue/",
+    "documentType": "Government Public Health Page",
+    "topic": "dengue_diagnosis_prevention",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "dengue",
+    "chunks": [
+      {
+        "chunkId": "cdc-2026-dengue-chunk-0",
+        "chunkIndex": 0,
+        "text": "Dengue is caused by any of four related dengue viruses (DENV-1, DENV-2, DENV-3, DENV-4). For this reason, a person can be infected with a dengue virus as many as four times in their lifetime.",
+        "startChar": 0,
+        "endChar": 207,
+        "page": null,
+        "section": "Cause"
+      },
+      {
+        "chunkId": "cdc-2026-dengue-chunk-1",
+        "chunkIndex": 1,
+        "text": "Dengue is diagnosed through blood tests. Commonly used tests include dengue NS1 antigen testing in the first week of illness and IgM antibody testing after day 5 of illness.",
+        "startChar": 207,
+        "endChar": 414,
+        "page": null,
+        "section": "Diagnosis"
+      },
+      {
+        "chunkId": "cdc-2026-dengue-chunk-2",
+        "chunkIndex": 2,
+        "text": "Prevention focuses on avoiding mosquito bites and controlling mosquito populations. A dengue vaccine is recommended only for people who have had dengue in the past and live in areas where dengue is common.",
+        "startChar": 414,
+        "endChar": 631,
+        "page": null,
+        "section": "Prevention"
+      }
+    ],
+    "metadata": {
+      "sourceId": "cdc-2026-dengue",
+      "title": "Dengue — CDC Disease Information",
+      "organization": "Centers for Disease Control and Prevention",
+      "disease": "dengue",
+      "topic": "dengue_diagnosis_prevention",
+      "documentType": "Government Public Health Page",
+      "publicationDate": "2026-03-01",
+      "url": "https://www.cdc.gov/dengue/",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "nhs-2026-dengue",
+    "title": "Dengue fever — NHS",
+    "organization": "National Health Service (UK)",
+    "publicationDate": "2026-02-10",
+    "url": "https://www.nhs.uk/conditions/dengue/",
+    "documentType": "Clinical Topic Page",
+    "topic": "dengue_symptoms_treatment",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "dengue",
+    "chunks": [
+      {
+        "chunkId": "nhs-2026-dengue-chunk-0",
+        "chunkIndex": 0,
+        "text": "Dengue fever is a viral infection spread by mosquitoes. It's not usually serious and often gets better on its own, but some people get a more severe type of dengue.",
+        "startChar": 0,
+        "endChar": 190,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "nhs-2026-dengue-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms of dengue fever include a high fever, severe headache, pain behind the eyes, muscle and joint pain, feeling or being sick, and a widespread rash.",
+        "startChar": 190,
+        "endChar": 398,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "nhs-2026-dengue-chunk-2",
+        "chunkIndex": 2,
+        "text": "There is no specific treatment for dengue fever. Most people can look after themselves at home with rest, plenty of fluids, and paracetamol for pain or fever. Ibuprofen and aspirin should not be taken while dengue is suspected because of bleeding risk.",
+        "startChar": 398,
+        "endChar": 644,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "nhs-2026-dengue",
+      "title": "Dengue fever — NHS",
+      "organization": "National Health Service (UK)",
+      "disease": "dengue",
+      "topic": "dengue_symptoms_treatment",
+      "documentType": "Clinical Topic Page",
+      "publicationDate": "2026-02-10",
+      "url": "https://www.nhs.uk/conditions/dengue/",
+      "version": "2026.1"
+    }
+  }
+]

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "who-2026-chikungunya",
+    "title": "Chikungunya — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-10",
+    "url": "https://www.who.int/news-room/fact-sheets/detail/chikungunya",
+    "documentType": "Fact Sheet",
+    "topic": "chikungunya_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25"
+  },
+  {
+    "id": "cdc-2026-chikungunya",
+    "title": "Chikungunya Virus — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-03-15",
+    "url": "https://www.cdc.gov/chikungunya/",
+    "documentType": "Government Public Health Page",
+    "topic": "chikungunya_diagnosis_prevention",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25"
+  },
+  {
+    "id": "nhs-2026-chikungunya",
+    "title": "Chikungunya — NHS",
+    "organization": "National Health Service (UK)",
+    "publicationDate": "2026-02-20",
+    "url": "https://www.nhs.uk/conditions/chikungunya/",
+    "documentType": "Clinical Topic Page",
+    "topic": "chikungunya_symptoms_treatment",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25"
+  }
+]

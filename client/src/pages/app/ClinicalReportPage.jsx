@@ -11,29 +11,50 @@ export default function ClinicalReportPage({ reportId = 'REP-9001', onNavigate }
   const [xai, setXai] = useState(null);
   const [evidence, setEvidence] = useState(null);
   const [riskData, setRiskData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadAll() {
-      const rep = await reportService.getById(reportId);
-      const pat = await patientService.getById(rep.patientId);
-      const p = await predictionService.getPrediction(rep.id);
-      const x = await predictionService.getXAI(p.id);
-      const e = await evidenceService.getEvidence(p.id);
-      const r = await riskService.getRisk(rep.id);
+      try {
+        const rep = await reportService.getById(reportId);
+        const pat = await patientService.getById(rep.patientId);
+        const p = await predictionService.getPrediction(rep.id);
+        const x = await predictionService.getXAI(p.id);
+        const e = await evidenceService.getEvidence(p.id);
+        const r = await riskService.getRisk(rep.id);
 
-      if (mounted) {
-        setReport(rep);
-        setPatient(pat);
-        setPred(p);
-        setXai(x);
-        setEvidence(e);
-        setRiskData(r);
+        if (mounted) {
+          setReport(rep);
+          setPatient(pat);
+          setPred(p);
+          setXai(x);
+          setEvidence(e);
+          setRiskData(r);
+          setErrorMsg(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+        }
       }
     }
     loadAll();
     return () => { mounted = false; };
   }, [reportId]);
+
+  if (errorMsg) {
+    return (
+      <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔌</div>
+        <h3 style={{ color: '#ef4444', marginBottom: 12 }}>Unable to load clinical report</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{errorMsg}</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          Retry ↻
+        </button>
+      </div>
+    );
+  }
 
   if (!report || !patient || !pred || !xai || !evidence || !riskData) {
     return (

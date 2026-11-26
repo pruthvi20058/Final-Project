@@ -1,18 +1,74 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const multer = require('multer');
 const { getDb } = require('./db/database');
 const { v4: uuidv4 } = require('uuid');
 const { runPipeline, registerStream, removeStream } = require('./agents/orchestrator');
 const { vectorSearch } = require('./knowledge/medicalKB');
+const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors({ origin: '*' }));
+// ---------------------------------------------------------------------------
+// Security middleware
+// ---------------------------------------------------------------------------
+
+// Helmet: secure HTTP headers (X-Frame-Options, X-Content-Type-Options, CSP, etc.)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // needed for some assets
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+      connectSrc: ["'self'", 'https:'],
+      fontSrc: ["'self'", 'https:', 'data:'],
+    },
+  },
+}));
+
+// CORS: restrict to specific origins in production; allow all only in dev
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+app.use(cors(corsOptions));
+
+// Rate limiting: general API limit
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // max 300 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' } },
+});
+app.use('/api/', apiLimiter);
+
+// Stricter rate limiting for login/register
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // max 20 auth attempts per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'AUTH_RATE_LIMITED', message: 'Too many authentication attempts. Please try again later.' } },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// ---------------------------------------------------------------------------
+// Body parsing
+// ---------------------------------------------------------------------------
+
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const fs = require('fs');
@@ -24,45 +80,17 @@ if (!fs.existsSync(uploadDir)) {
 // File upload config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 
-// Routes
+// ---------------------------------------------------------------------------
+// Public routes (no authentication required)
+// ---------------------------------------------------------------------------
+
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/patients', require('./routes/patients'));
-app.use('/api/consultations', require('./routes/consultations'));
-app.use('/api/knowledge', require('./routes/knowledge'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/ml', require('./routes/ml'));
-app.use('/api/health-companion', require('./routes/healthCompanion'));
-const nlpModule = require('./routes/nlp');
-app.use('/api/nlp', nlpModule.router);
-app.post('/api/assessments', nlpModule.handleAssessment);
-app.get('/api/assessments', (req, res) => {
-  const { getAllMultilingualConsultations } = require('./db/database');
-  res.json({ success: true, assessments: getAllMultilingualConsultations() });
-});
-app.get('/api/assessments/:id', (req, res) => {
-  const { getMultilingualConsultation } = require('./db/database');
-  const record = getMultilingualConsultation(req.params.id);
-  if (!record) return res.status(404).json({ success: false, error: 'Assessment not found' });
-  res.json({ success: true, assessment: record });
-});
 
-// File upload endpoint (legacy multi-image upload endpoint)
-app.post('/api/upload', upload.array('images', 5), (req, res) => {
-  const files = req.files.map(f => ({
-    filename: f.filename,
-    originalname: f.originalname,
-    path: `/uploads/${f.filename}`,
-    size: f.size,
-    mimetype: f.mimetype
-  }));
-  res.json({ files });
-});
-
-// Root and Health endpoints
+// Root and Health endpoints — always public
 app.get('/', (req, res) => {
   res.json({
     name: 'MediAgent Clinical Decision Support API',
@@ -76,8 +104,10 @@ app.get('/', (req, res) => {
       chat: '/api/chat',
       knowledge: '/api/knowledge',
       consultations: '/api/consultations',
-      assessments: '/api/assessments'
-    }
+      assessments: '/api/assessments',
+      orchestrator: '/api/orchestrator',
+      auth: '/api/auth',
+    },
   });
 });
 
@@ -86,55 +116,58 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.round(process.uptime()),
-    environment: process.env.NODE_ENV || 'production'
+    environment: process.env.NODE_ENV || 'production',
   });
 });
 
 app.get('/api/chat', (req, res) => {
   res.json({
     message: 'MediAgent RAG Chat endpoint. Send a POST request with { message, sessionId } to chat.',
-    status: 'active'
+    status: 'active',
   });
 });
 
-// Chat endpoint (RAG-powered)
-app.post('/api/chat', (req, res) => {
-  const { message, sessionId } = req.body;
-  if (!message) return res.status(400).json({ error: 'Message required' });
+// ---------------------------------------------------------------------------
+// Protected routes (authentication required)
+// ---------------------------------------------------------------------------
 
-  const db = getDb();
-  const msgId = uuidv4();
-  const sid = sessionId || uuidv4();
-
-  db.prepare('INSERT INTO chat_messages (id, session_id, role, content) VALUES (?, ?, ?, ?)').run(msgId, sid, 'user', message);
-
-  // RAG search
-  const results = vectorSearch.search(message, 3);
-  let response = '';
-
-  if (results.length > 0) {
-    const top = results[0].condition;
-    response = `Based on your query, here's what I found:\n\n**${top.name}** (${top.category})\n\n`;
-    response += `**Common Symptoms:** ${top.symptoms.join(', ')}\n\n`;
-    response += `**Risk Factors:** ${top.risk_factors.join(', ')}\n\n`;
-    response += `**Clinical Guidelines:** ${top.guidelines}\n\n`;
-    response += `**Recommended Treatments:** ${top.treatments.join(', ')}\n\n`;
-    if (results.length > 1) {
-      response += `**Related Conditions:** ${results.slice(1).map(r => r.condition.name).join(', ')}\n\n`;
-    }
-    response += `*Source: MediAgent KB — Evidence Level ${top.evidence_level} | ICD-10: ${top.icd10}*`;
-  } else {
-    response = "I couldn't find specific information matching your query in the medical knowledge base. Please try rephrasing with medical terminology or specific symptoms. For emergencies, please contact emergency services immediately.";
-  }
-
-  const replyId = uuidv4();
-  db.prepare('INSERT INTO chat_messages (id, session_id, role, content) VALUES (?, ?, ?, ?)').run(replyId, sid, 'assistant', response);
-
-  res.json({ sessionId: sid, reply: response, sources: results.map(r => ({ name: r.condition.name, relevance: Math.round(r.score * 100) })) });
+app.use('/api/patients', authenticateToken, require('./routes/patients'));
+app.use('/api/reports', authenticateToken, require('./routes/reports'));
+app.use('/api/consultations', authenticateToken, require('./routes/consultations'));
+app.use('/api/knowledge', authenticateToken, require('./routes/knowledge'));
+app.use('/api/rag', authenticateToken, require('./routes/rag'));
+app.use('/api/ml', authenticateToken, require('./routes/ml'));
+app.use('/api/health-companion', authenticateToken, require('./routes/healthCompanion'));
+app.use('/api/orchestrator', authenticateToken, require('./routes/orchestrator'));
+app.use('/api/risk', authenticateToken, require('./routes/risk'));
+const nlpModule = require('./routes/nlp');
+app.use('/api/nlp', authenticateToken, nlpModule.router);
+app.post('/api/assessments', authenticateToken, nlpModule.handleAssessment);
+app.get('/api/assessments', authenticateToken, (req, res) => {
+  const { getAllMultilingualConsultations } = require('./db/database');
+  res.json({ success: true, assessments: getAllMultilingualConsultations() });
+});
+app.get('/api/assessments/:id', authenticateToken, (req, res) => {
+  const { getMultilingualConsultation } = require('./db/database');
+  const record = getMultilingualConsultation(req.params.id);
+  if (!record) return res.status(404).json({ success: false, error: 'Assessment not found' });
+  res.json({ success: true, assessment: record });
 });
 
-// Dashboard stats
-app.get('/api/stats', (req, res) => {
+// File upload endpoint (legacy multi-image upload endpoint) — protected
+app.post('/api/upload', authenticateToken, upload.array('images', 5), (req, res) => {
+  const files = req.files.map((f) => ({
+    filename: f.filename,
+    originalname: f.originalname,
+    path: `/uploads/${f.filename}`,
+    size: f.size,
+    mimetype: f.mimetype,
+  }));
+  res.json({ files });
+});
+
+// Dashboard stats — protected (aggregated data)
+app.get('/api/stats', authenticateToken, (req, res) => {
   try {
     const db = getDb();
     const totalPatients = db.prepare('SELECT COUNT(*) as c FROM patients').get()?.c || 0;
@@ -148,7 +181,7 @@ app.get('/api/stats', (req, res) => {
 
     let emergencyCount = 0;
     const allComplete = db.prepare("SELECT triage_result FROM consultations WHERE status = 'complete' AND triage_result IS NOT NULL").all();
-    allComplete.forEach(c => {
+    allComplete.forEach((c) => {
       try {
         const triage = JSON.parse(c.triage_result);
         if (triage.triageLevel === 'Emergency' || triage.triageLevel === 'Urgent') emergencyCount++;
@@ -158,28 +191,209 @@ app.get('/api/stats', (req, res) => {
     res.json({ totalPatients, totalConsultations, completedConsultations, emergencyCount, recentConsultations });
   } catch (err) {
     console.error('Error in /api/stats:', err);
-    res.json({
-      totalPatients: 1,
-      totalConsultations: 1,
-      completedConsultations: 1,
-      emergencyCount: 0,
-      recentConsultations: [
-        {
-          id: 'CON-1001',
-          chief_complaint: 'Routine comprehensive laboratory screening and diabetic review',
-          status: 'complete',
-          created_at: new Date().toISOString(),
-          patient_name: 'Sarah Johnson'
-        }
-      ]
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load statistics' },
     });
   }
 });
 
+// Evaluation metrics — protected. Returns NOT_EVALUATED when no real results exist.
+app.get('/api/evaluation/metrics', authenticateToken, (req, res) => {
+  try {
+    const db = getDb();
+    let evalRows;
+    try {
+      evalRows = db.prepare('SELECT * FROM evaluation_results ORDER BY created_at DESC LIMIT 1').all();
+    } catch {
+      evalRows = [];
+    }
+
+    if (!evalRows || evalRows.length === 0) {
+      return res.json({
+        success: true,
+        metrics: null,
+        status: 'NOT_EVALUATED',
+        message: 'No model evaluation has been performed. Metrics are unavailable until a reproducible evaluation is executed against a held-out test set.'
+      });
+    }
+
+    const latest = evalRows[0];
+    res.json({
+      success: true,
+      metrics: latest.metrics ? (typeof latest.metrics === 'string' ? JSON.parse(latest.metrics) : latest.metrics) : null,
+      status: 'AVAILABLE',
+      message: 'Evaluation metrics from most recent reproducible evaluation run.'
+    });
+  } catch (err) {
+    console.error('Error in /api/evaluation/metrics:', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load evaluation metrics' }
+    });
+  }
+});
+
+// System status — protected. Returns real health checks, never static "Online" claims.
+app.get('/api/system/status', authenticateToken, (req, res) => {
+  try {
+    const checks = [];
+
+    checks.push({
+      name: 'Express Backend API',
+      status: 'ONLINE',
+      detail: 'HTTP server accepting requests'
+    });
+
+    let dbStatus = 'UNAVAILABLE';
+    let dbDetail = 'Database connection could not be established';
+    try {
+      const db = getDb();
+      db.prepare('SELECT 1').run();
+      dbStatus = 'ONLINE';
+      dbDetail = 'SQLite database connection verified';
+    } catch {
+      dbStatus = 'UNAVAILABLE';
+      dbDetail = 'SQLite database connection failed';
+    }
+    checks.push({
+      name: 'SQLite Database',
+      status: dbStatus,
+      detail: dbDetail
+    });
+
+    let ocrStatus = 'UNAVAILABLE';
+    let ocrDetail = 'OCR engine not available';
+    try {
+      require('tesseract.js');
+      ocrStatus = 'ONLINE';
+      ocrDetail = 'Tesseract OCR module loaded';
+    } catch {
+      ocrStatus = 'UNAVAILABLE';
+      ocrDetail = 'Tesseract OCR module not available';
+    }
+    checks.push({
+      name: 'OCR Engine (Tesseract)',
+      status: ocrStatus,
+      detail: ocrDetail
+    });
+
+    let pdfStatus = 'UNAVAILABLE';
+    let pdfDetail = 'PDF parser not available';
+    try {
+      require('pdf-parse');
+      pdfStatus = 'ONLINE';
+      pdfDetail = 'pdf-parse module loaded';
+    } catch {
+      pdfStatus = 'UNAVAILABLE';
+      pdfDetail = 'pdf-parse module not available';
+    }
+    checks.push({
+      name: 'PDF Text Extraction',
+      status: pdfStatus,
+      detail: pdfDetail
+    });
+
+    let mlStatus = 'UNAVAILABLE';
+    let mlDetail = 'No ML model artifacts found';
+    try {
+      const modelPath = require('path').join(__dirname, 'ml', 'models', 'diabetes', 'model.joblib');
+      if (require('fs').existsSync(modelPath)) {
+        mlStatus = 'ONLINE';
+        mlDetail = 'Pima diabetes model artifact present';
+      } else {
+        mlStatus = 'UNAVAILABLE';
+        mlDetail = 'Pima diabetes model artifact missing';
+      }
+    } catch {
+      mlStatus = 'UNAVAILABLE';
+      mlDetail = 'ML model check failed';
+    }
+    checks.push({
+      name: 'ML Model (Pima Diabetes)',
+      status: mlStatus,
+      detail: mlDetail
+    });
+
+    let ragStatus = 'UNAVAILABLE';
+    let ragDetail = 'RAG knowledge base not available';
+    try {
+      const { loadKnowledgeSources } = require('./services/ragService');
+      const sources = loadKnowledgeSources();
+      if (sources && sources.length > 0) {
+        ragStatus = 'ONLINE';
+        ragDetail = `RAG knowledge base loaded with ${sources.length} source(s)`;
+      } else {
+        ragStatus = 'UNAVAILABLE';
+        ragDetail = 'RAG knowledge base has no sources';
+      }
+    } catch {
+      ragStatus = 'UNAVAILABLE';
+      ragDetail = 'RAG service check failed';
+    }
+    checks.push({
+      name: 'RAG Knowledge Base',
+      status: ragStatus,
+      detail: ragDetail
+    });
+
+    const llmConfigured = Boolean(process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+    checks.push({
+      name: 'LLM Reasoning Provider',
+      status: llmConfigured ? 'CONFIGURED' : 'UNAVAILABLE',
+      detail: llmConfigured ? 'LLM API key present in environment' : 'No LLM API key configured'
+    });
+
+    res.json({
+      success: true,
+      status: 'OK',
+      checks,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error in /api/system/status:', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load system status' }
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Global error handler — never expose stack traces to clients
+// ---------------------------------------------------------------------------
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+
+  // Multer file upload errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds the 15 MB limit.' },
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      error: { code: 'UPLOAD_ERROR', message: err.message },
+    });
+  }
+
+  res.status(500).json({
+    success: false,
+    error: { code: 'SERVER_ERROR', message: 'Internal server error' },
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Init DB and start
+// ---------------------------------------------------------------------------
+
 getDb();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🏥 MediAgent Server running on port ${PORT}`);
   console.log('📡 API endpoints ready');
+  console.log('🔐 Authentication middleware active');
   console.log('🤖 Agent pipeline initialized\n');
 });

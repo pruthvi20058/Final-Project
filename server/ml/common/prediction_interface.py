@@ -2,6 +2,7 @@
 MediAgent — Universal Prediction Interface
 Routes clinical inference strictly to the selected disease's model, preprocessor, and schema.
 NEVER sends non-diabetes data to the diabetes model or forces Pima features on other diseases.
+Strict feature validation is applied before any inference.
 """
 
 import os
@@ -20,22 +21,78 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 from model_registry import get_model_info, load_registry
+from feature_validator import validate_features
+
 
 def predict_disease_case(disease_name, feature_data, image_path=None):
     disease_key = str(disease_name).lower().strip()
     model_info = get_model_info(disease_key)
 
-    if not model_info or model_info.get("status") not in ["TRAINED", "AVAILABLE"]:
+    # 1. Check model readiness from registry
+    if not model_info:
         return {
-            "status": "UNAVAILABLE",
+            "status": "MODEL_NOT_AVAILABLE",
             "disease": disease_key,
-            "modelName": f"MediAgent {model_info.get('display_name', disease_key.title()) if model_info else disease_key.title()} Classifier",
+            "modelName": f"MediAgent {disease_key.title()} Classifier",
             "modelVersion": "N/A - Offline",
-            "message": f"ML prediction for {disease_key.title()} is currently unavailable. No trained model artifact exists yet. Please upload a dataset in the Dataset & Training Studio to train this module.",
+            "message": f"No model registry entry for disease '{disease_key}'. ML prediction is unavailable.",
+            "readiness": "UNAVAILABLE",
+            "readiness_reason": "No model registry entry found.",
             "disclaimer": "Diagnostic ML prediction is guarded until an authenticated training dataset is provided."
         }
 
-    # Resolve Artifact Paths
+    readiness = model_info.get("readiness", "UNKNOWN")
+    readiness_reason = model_info.get("readiness_reason", "No readiness reason documented.")
+    model_status = model_info.get("status", "").upper()
+
+    # Block inference for diseases that are not verified/available
+    if model_status not in ["TRAINED", "AVAILABLE"]:
+        return {
+            "status": "MODEL_NOT_AVAILABLE",
+            "disease": disease_key,
+            "modelName": model_info.get("display_name", disease_key.title()),
+            "modelVersion": model_info.get("model_version", "N/A"),
+            "message": f"ML prediction for {disease_key.title()} is currently unavailable. Model status: {model_status}.",
+            "readiness": readiness,
+            "readiness_reason": readiness_reason,
+            "disclaimer": "Diagnostic ML prediction is guarded until an authenticated training dataset is provided."
+        }
+
+    # Block inference if model has not been evaluated (no metrics)
+    metrics = model_info.get("metrics", {})
+    if not metrics or len(metrics) == 0:
+        return {
+            "status": "MODEL_NOT_VALIDATED",
+            "disease": disease_key,
+            "modelName": model_info.get("display_name", disease_key.title()),
+            "modelVersion": model_info.get("model_version", "N/A"),
+            "message": f"Model for {disease_key.title()} has no evaluation metrics. Model not validated.",
+            "readiness": "MODEL_NOT_VALIDATED",
+            "readiness_reason": readiness_reason,
+            "disclaimer": "Diagnostic ML prediction is guarded until model evaluation is complete."
+        }
+
+    # 2. Strict feature validation before inference
+    validation = validate_features(disease_key, feature_data)
+    if not validation["valid"]:
+        return {
+            "status": validation["status"],
+            "disease": disease_key,
+            "modelName": model_info.get("display_name", disease_key.title()),
+            "modelVersion": model_info.get("model_version", "N/A"),
+            "message": validation["errors"][0] if validation["errors"] else "Feature validation failed.",
+            "errors": validation["errors"],
+            "warnings": validation["warnings"],
+            "missing_required": validation["missing_required"],
+            "invalid_features": validation["invalid_features"],
+            "readiness": readiness,
+            "readiness_reason": readiness_reason,
+            "disclaimer": "No prediction generated because input features did not pass validation."
+        }
+
+    normalized_input = validation["normalized_input"]
+
+    # 3. Resolve Artifact Paths
     model_path = os.path.join(ML_DIR, model_info["model_path"])
     prep_path = os.path.join(ML_DIR, model_info["preprocessor_path"])
     schema_path = os.path.join(ML_DIR, model_info["schema_path"])
@@ -43,19 +100,26 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
 
     if not os.path.exists(model_path) or not os.path.exists(prep_path):
         return {
-            "status": "UNAVAILABLE",
+            "status": "MODEL_NOT_AVAILABLE",
             "disease": disease_key,
-            "message": f"Trained artifacts for {disease_key.title()} not found at {model_path}."
+            "message": f"Trained artifacts for {disease_key.title()} not found at {model_path}.",
+            "readiness": readiness,
+            "readiness_reason": readiness_reason,
+            "disclaimer": "Diagnostic ML prediction is guarded until model artifacts are available."
         }
 
     # Diabetes Specialization: 100% preservation of authoritative Pima model + SHAP
     if disease_key == "diabetes":
         import predict as legacy_predict
-        res = legacy_predict.predict_diabetes(feature_data, ML_DIR)
+        res = legacy_predict.predict_diabetes(normalized_input, ML_DIR)
         if "predicted_label" not in res and "predictedOutcome" in res:
             res["predicted_label"] = res["predictedOutcome"]
         if "probability" not in res and "estimatedProbability" in res:
             res["probability"] = res["estimatedProbability"]
+        # Attach readiness info
+        res["readiness"] = readiness
+        res["readiness_reason"] = readiness_reason
+        res["validation"] = validation
         return res
 
     # General Disease Prediction Pipeline
@@ -74,47 +138,7 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
     cat_cols = prep.get("cat_cols", [])
     label_encoders = prep.get("label_encoders", {})
 
-    normalized_input = {}
-    missing_required = []
-
-    # Map input features against canonical schema
-    for f_info in canonical_features:
-        canon_name = f_info["name"]
-        synonyms = f_info.get("report_synonyms", [])
-        matched_val = None
-
-        for k, v in feature_data.items():
-            k_clean = str(k).lower().replace(" ", "_")
-            if k_clean == canon_name.lower() or k_clean in [s.lower() for s in synonyms]:
-                matched_val = v
-                break
-
-        if matched_val is not None and matched_val != "":
-            try:
-                normalized_input[canon_name] = float(matched_val)
-            except (ValueError, TypeError):
-                normalized_input[canon_name] = str(matched_val)
-        else:
-            if f_info.get("required", False):
-                missing_required.append(f_info.get("clinical_label", canon_name))
-            else:
-                # Default zero for unobserved clinical flags
-                normalized_input[canon_name] = 0.0
-
-    # If schema didn't match directly, fall back to exact expected columns
-    if not normalized_input:
-        for col in expected_cols:
-            for k, v in feature_data.items():
-                if str(k).lower().strip() == str(col).lower().strip():
-                    try:
-                        normalized_input[col] = float(v)
-                    except:
-                        normalized_input[col] = str(v)
-                    break
-            if col not in normalized_input:
-                normalized_input[col] = 0.0
-
-    # Build input DataFrame
+    # Build input DataFrame from validated normalized_input
     row_data = {}
     for col in expected_cols:
         val = normalized_input.get(col, 0.0)
@@ -188,7 +212,10 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
         "probabilityVector": {"negative": round(prob_neg, 4), "positive": round(prob_pos, 4)},
         "topContributingFeatures": top_features,
         "testMetrics": model_info.get("metrics", {}),
-        "disclaimer": "AI-assisted clinical decision support screening tool. Not a confirmed diagnosis. All results should be evaluated by a qualified healthcare professional."
+        "readiness": readiness,
+        "readiness_reason": readiness_reason,
+        "validation": validation,
+        "disclaimer": "AI-assisted clinical decision support screening tool. Not a confirmed diagnosis. All results should be evaluated by a qualified healthcare professional. Model probability is not a clinical risk score."
     }
 
 def main():

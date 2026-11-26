@@ -183,6 +183,113 @@ async function runTests() {
     console.error('Test execution error:', err);
   }
 
+  // ── Task 5: Patient Verification & Model Readiness Tests ──
+  try {
+    const { mapSymptomsToDiseaseFeatures, getModelReadiness, isModelGated } = require('../agents/multilingualAgent');
+
+    // TEST 13: Model readiness — dengue is gated (NEEDS_CLEANING)
+    const dengueReadiness = getModelReadiness('dengue');
+    record(
+      'Model Readiness: Dengue is gated (NEEDS_CLEANING) — no inference served',
+      dengueReadiness && dengueReadiness.gated === true && dengueReadiness.readiness === 'NEEDS_CLEANING',
+      `Readiness: ${dengueReadiness ? dengueReadiness.readiness : 'null'}`
+    );
+
+    // TEST 14: Model readiness — malaria is NOT gated but VERIFIED_LOW_PERFORMANCE
+    const malariaReadiness = getModelReadiness('malaria');
+    record(
+      'Model Readiness: Malaria is not gated (VERIFIED_LOW_PERFORMANCE) — usable with caution',
+      malariaReadiness && malariaReadiness.gated === false && malariaReadiness.readiness === 'VERIFIED_LOW_PERFORMANCE',
+      `Readiness: ${malariaReadiness ? malariaReadiness.readiness : 'null'}`
+    );
+
+    // TEST 15: Model readiness — typhoid is gated (UNAVAILABLE)
+    const typhoidReadiness = getModelReadiness('typhoid');
+    record(
+      'Model Readiness: Typhoid is gated (UNAVAILABLE) — no inference served',
+      typhoidReadiness && typhoidReadiness.gated === true && typhoidReadiness.readiness === 'UNAVAILABLE',
+      `Readiness: ${typhoidReadiness ? typhoidReadiness.readiness : 'null'}`
+    );
+
+    // TEST 16: Symptom→Feature mapping — NO symptom→Pima mapping for diabetes
+    const pimaMap = mapSymptomsToDiseaseFeatures(['fever', 'headache'], 'diabetes');
+    record(
+      'Symptom→Feature: No symptom→Pima mapping for diabetes (PIMA_TABULAR_ONLY)',
+      pimaMap.status === 'PIMA_TABULAR_ONLY' && pimaMap.mappedFeatures && Object.keys(pimaMap.mappedFeatures).length === 0,
+      `Status: ${pimaMap.status}`
+    );
+
+    // TEST 17: Symptom→Feature mapping — malaria maps symptoms but reports INSUFFICIENT_DATA for missing lab features
+    const malariaMap = mapSymptomsToDiseaseFeatures(['fever', 'headache', 'fatigue'], 'malaria');
+    record(
+      'Symptom→Feature: Malaria maps fever/headache/fatigue but reports INSUFFICIENT_DATA (missing lab features)',
+      malariaMap.status === 'INSUFFICIENT_DATA' &&
+      malariaMap.mappedFeatures &&
+      malariaMap.mappedFeatures.fever !== undefined &&
+      malariaMap.mappedFeatures.headace !== undefined &&
+      Array.isArray(malariaMap.missingRequired) &&
+      malariaMap.missingRequired.length > 0,
+      `Status: ${malariaMap.status}, Mapped: [${Object.keys(malariaMap.mappedFeatures).join(', ')}]`
+    );
+
+    // TEST 18: Symptom→Feature mapping — dengue is gated, no mapping
+    const dengueMap = mapSymptomsToDiseaseFeatures(['fever', 'headache'], 'dengue');
+    record(
+      'Symptom→Feature: Dengue is gated (MODEL_GATED_NEEDS_CLEANING), no feature mapping',
+      dengueMap.gated === true && dengueMap.status === 'MODEL_GATED_NEEDS_CLEANING',
+      `Status: ${dengueMap.status}`
+    );
+
+    // TEST 19: Mandatory user confirmation — consultation without userConfirmed returns REQUIRES_USER_CONFIRMATION
+    const unconfirmed = await runMultilingualConsultation({
+      inputType: 'text',
+      rawText: 'I have fever and headache for 3 days',
+      preferredLanguage: 'en',
+      patientData: { id: 'PAT-8001', name: 'Test Patient', age: 45, gender: 'Female' },
+      userConfirmed: false
+    });
+    record(
+      'Mandatory Verification: Consultation without userConfirmed returns REQUIRES_USER_CONFIRMATION',
+      unconfirmed.status === 'REQUIRES_USER_CONFIRMATION' && unconfirmed.needsUserConfirmation === true,
+      `Status: ${unconfirmed.status}`
+    );
+
+    // TEST 20: Mandatory user confirmation — consultation with userConfirmed=true proceeds to COMPLETE
+    const confirmed = await runMultilingualConsultation({
+      inputType: 'text',
+      rawText: 'I have fever and headache for 3 days',
+      preferredLanguage: 'en',
+      patientData: { id: 'PAT-8001', name: 'Test Patient', age: 45, gender: 'Female' },
+      userConfirmed: true,
+      verifiedSymptoms: ['fever', 'headache']
+    });
+    record(
+      'Mandatory Verification: Consultation with userConfirmed=true returns COMPLETE',
+      confirmed.status === 'COMPLETE' && confirmed.needsUserConfirmation !== true,
+      `Status: ${confirmed.status}, ConsultationId: ${confirmed.consultationId}`
+    );
+
+    // TEST 21: Verified symptoms override NLP extraction
+    const overrideSymptoms = await runMultilingualConsultation({
+      inputType: 'text',
+      rawText: 'I have fever', // NLP would only extract fever
+      preferredLanguage: 'en',
+      patientData: { id: 'PAT-8001', name: 'Test Patient', age: 45, gender: 'Female' },
+      userConfirmed: true,
+      verifiedSymptoms: ['fever', 'headache', 'cough'] // user adds headache and cough
+    });
+    record(
+      'Symptom Verification: User-verified symptoms override NLP extraction',
+      overrideSymptoms.status === 'COMPLETE' &&
+      overrideSymptoms.clinicalEntities.activeSymptoms.includes('cough') &&
+      overrideSymptoms.clinicalEntities.symptomSource === 'user_verified',
+      `Active: [${overrideSymptoms.clinicalEntities.activeSymptoms.join(', ')}], Source: ${overrideSymptoms.clinicalEntities.symptomSource}`
+    );
+
+  } catch (err) {
+    console.error('Task 5 test execution error:', err);
+  }
+
   console.log("\n================================================================================");
   console.log(`📊 TEST RESULTS: ${passed} / ${total} TESTS PASSED`);
   console.log("================================================================================\n");

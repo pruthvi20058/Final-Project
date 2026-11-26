@@ -1,0 +1,24 @@
+[
+  {
+    "id": "who-2026-typhoid",
+    "title": "Typhoid — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-05",
+    "url": "https://www.who.int/health-topics/typhoid",
+    "documentType": "Fact Sheet",
+    "topic": "typhoid_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25"
+  },
+  {
+    "id": "cdc-2026-typhoid",
+    "title": "Typhoid Fever — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-02-01",
+    "url": "https://www.cdc.gov/typhoid-fever/",
+    "documentType": "Government Public Health Page",
+    "topic": "typhoid_diagnosis_prevention",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25"
+  }
+]

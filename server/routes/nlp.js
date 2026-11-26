@@ -10,7 +10,9 @@ const {
 } = require('../services/multilingualService');
 const {
   SUPPORTED_LANGUAGES,
-  runMultilingualConsultation
+  runMultilingualConsultation,
+  mapSymptomsToDiseaseFeatures,
+  getModelReadiness
 } = require('../agents/multilingualAgent');
 const {
   saveMultilingualConsultation,
@@ -196,7 +198,8 @@ const handleAssessment = async (req, res) => {
       patientGender = 'Female',
       vitals = null,
       userConfirmed = false,
-      synthesizeAudio = true
+      synthesizeAudio = true,
+      verifiedSymptoms = null
     } = req.body;
 
     let audioPath = null;
@@ -214,7 +217,8 @@ const handleAssessment = async (req, res) => {
       patientData: { id: patientId, name: patientName, age: patientAge, gender: patientGender },
       vitals,
       synthesizeAudio,
-      userConfirmed: Boolean(userConfirmed)
+      userConfirmed: Boolean(userConfirmed),
+      verifiedSymptoms: Array.isArray(verifiedSymptoms) ? verifiedSymptoms : null
     });
 
     if (!result.success) {
@@ -233,6 +237,7 @@ const handleAssessment = async (req, res) => {
       normalizedText: result.normalizedText,
       clinicalEntities: result.clinicalEntities,
       userConfirmed: userConfirmed ? 1 : 0,
+      userCorrections: result.clinicalEntities?.userCorrections ? JSON.stringify(result.clinicalEntities.userCorrections) : '{}',
       assessmentResult: result.assessment,
       audioMetadata: result.asrMetadata,
       audioUrl: audioUrl,
@@ -268,6 +273,95 @@ router.get('/consultations/:id', (req, res) => {
       return res.status(404).json({ success: false, error: 'Consultation record not found' });
     }
     return res.json({ success: true, consultation: record });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 9. POST /api/nlp/verify-symptoms — Submit patient-verified/corrected symptoms and run assessment
+// Mandatory verification step: symptoms must be confirmed by the patient before assessment.
+router.post('/verify-symptoms', async (req, res) => {
+  try {
+    const {
+      text = '',
+      preferredLanguage = null,
+      patientId = 'PAT-8001',
+      patientName = 'Patient',
+      patientAge = 45,
+      patientGender = 'Female',
+      vitals = null,
+      synthesizeAudio = true,
+      verifiedSymptoms = null
+    } = req.body;
+
+    if (!verifiedSymptoms || !Array.isArray(verifiedSymptoms) || verifiedSymptoms.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'verifiedSymptoms is required and must be a non-empty array of confirmed symptom names.'
+      });
+    }
+
+    const result = await runMultilingualConsultation({
+      inputType: 'text',
+      audioPath: null,
+      rawText: text,
+      preferredLanguage,
+      patientData: { id: patientId, name: patientName, age: patientAge, gender: patientGender },
+      vitals,
+      synthesizeAudio,
+      userConfirmed: true,
+      verifiedSymptoms
+    });
+
+    if (!result.success) {
+      return res.status(422).json(result);
+    }
+
+    // Persist to SQLite
+    const saved = saveMultilingualConsultation({
+      id: result.consultationId,
+      patientId,
+      inputType: 'text',
+      originalLanguage: result.detectedLanguage,
+      detectedLanguage: result.detectedLanguage,
+      originalText: result.originalText,
+      originalTranscript: result.originalTranscript,
+      normalizedText: result.normalizedText,
+      clinicalEntities: result.clinicalEntities,
+      userConfirmed: 1,
+      userCorrections: result.clinicalEntities?.userCorrections ? JSON.stringify(result.clinicalEntities.userCorrections) : '{}',
+      assessmentResult: result.assessment,
+      audioMetadata: result.asrMetadata,
+      audioUrl: null,
+      ttsAudioUrl: result.audioUrl
+    });
+
+    return res.json({
+      ...result,
+      persistedRecord: saved
+    });
+  } catch (err) {
+    console.error('[NLP Route] Verify-symptoms failure:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 10. GET /api/nlp/model-readiness/:disease — Check Task 4 model readiness for a disease
+router.get('/model-readiness/:disease', (req, res) => {
+  try {
+    const diseaseKey = req.params.disease;
+    const readiness = getModelReadiness(diseaseKey);
+    if (!readiness) {
+      return res.status(404).json({
+        success: false,
+        error: `No model registry entry for disease '${diseaseKey}'.`
+      });
+    }
+    return res.json({
+      success: true,
+      disease: diseaseKey,
+      ...readiness
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

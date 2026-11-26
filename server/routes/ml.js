@@ -366,4 +366,37 @@ router.post('/predict/:disease', async (req, res) => {
   }
 });
 
+// 8. GET /api/ml/readiness — Disease-specific model readiness status
+router.get('/readiness', async (req, res) => {
+  try {
+    const regPath = path.join(mlDir, 'models', 'model_registry.json');
+    if (!fs.existsSync(regPath)) {
+      return res.status(404).json({ success: false, error: 'Model registry not found.' });
+    }
+
+    const raw = JSON.parse(fs.readFileSync(regPath, 'utf8'));
+    const readiness = {};
+
+    for (const [disease, info] of Object.entries(raw)) {
+      readiness[disease] = {
+        disease: info.disease || disease,
+        display_name: info.display_name || disease,
+        status: info.status || 'UNKNOWN',
+        readiness: info.readiness || 'UNKNOWN',
+        readiness_reason: info.readiness_reason || 'No reason documented.',
+        model_version: info.model_version || 'N/A',
+        feature_count: info.feature_count || 0,
+        features: info.features || [],
+        metrics: info.metrics || {},
+        audit_flags: info.audit_flags || [],
+        dataset_provenance: info.dataset_provenance || {},
+      };
+    }
+
+    return res.json({ success: true, readiness });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

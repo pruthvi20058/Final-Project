@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import ProbabilityBar from '../../components/ProbabilityBar';
-import { predictionService, reportService, FALLBACK_PREDICTION, FALLBACK_REPORT } from '../../services/api';
+import { predictionService, reportService, mlService } from '../../services/api';
 
 const DISEASES = [
   { id: 'diabetes', label: 'Diabetes Mellitus', icon: '🩺' },
@@ -12,26 +12,51 @@ const DISEASES = [
   { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
 ];
 
+const READINESS_BADGE = {
+  VERIFIED: { label: 'Verified', color: '#10b981' },
+  VERIFIED_LOW_PERFORMANCE: { label: 'Low Performance', color: '#f59e0b' },
+  NEEDS_CLEANING: { label: 'Needs Cleaning', color: '#f59e0b' },
+  NEEDS_SOURCE_VERIFICATION: { label: 'Source Unverified', color: '#f59e0b' },
+  UNAVAILABLE: { label: 'Unavailable', color: '#ef4444' },
+  MODEL_NOT_VALIDATED: { label: 'Not Validated', color: '#ef4444' },
+  UNKNOWN: { label: 'Unknown', color: '#94a3b8' }
+};
+
 export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'SUCCESS' | 'ERROR'
-  const [pred, setPred] = useState(FALLBACK_PREDICTION);
-  const [report, setReport] = useState(FALLBACK_REPORT);
-  const [readiness, setReadiness] = useState(FALLBACK_REPORT.modelReadiness);
+  const [pageState, setPageState] = useState('SUCCESS'); // 'LOADING' | 'REPORT_NOT_FOUND' | 'PREDICTION_NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'INVALID_DATA' | 'VERIFICATION_REQUIRED' | 'SUCCESS' | 'ERROR'
+  const [pred, setPred] = useState(null);
+  const [report, setReport] = useState(null);
+  const [readiness, setReadiness] = useState(null);
+  const [diseaseReadiness, setDiseaseReadiness] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
 
   const loadData = async (targetDisease = selectedDisease) => {
     try {
       setLoading(true);
+
+      // Fetch disease model readiness status
+      try {
+        const readinessData = await mlService.getReadiness();
+        if (readinessData && readinessData.readiness) {
+          setDiseaseReadiness(readinessData.readiness);
+        }
+      } catch (readinessErr) {
+        console.warn('[PredictionPage] Could not fetch disease readiness:', readinessErr.message);
+      }
+
       let rep = null;
       try {
         rep = await reportService.getById(reportId || 'REP-9001', targetDisease);
       } catch (repErr) {
-        rep = FALLBACK_REPORT;
+        setPageState('ERROR');
+        setErrorMsg(repErr.message || 'Unable to load report. Please verify your connection.');
+        setLoading(false);
+        return;
       }
 
-      setReport(rep || FALLBACK_REPORT);
+      setReport(rep);
 
       // Auto-detect disease if targetDisease not explicitly chosen
       let activeDisease = targetDisease;
@@ -48,15 +73,20 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         setSelectedDisease('diabetes');
       }
 
-      const repReadiness = (rep && rep.modelReadiness) || FALLBACK_REPORT.modelReadiness;
+      const repReadiness = (rep && rep.modelReadiness) || null;
       setReadiness(repReadiness);
 
       // Step 2: Query prediction endpoint for this verified report and disease
-      let predRes = null;
-      try {
-        predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
-      } catch {
-        predRes = FALLBACK_PREDICTION;
+      let predRes = await predictionService.getPrediction(rep?.id || 'REP-9001', activeDisease);
+
+      // Handle verification-required status — prediction cannot be generated before backend verification
+      if (predRes && predRes.status === 'VERIFICATION_REQUIRED') {
+        setPred(predRes);
+        setReadiness(predRes.modelReadiness || repReadiness);
+        setPageState('VERIFICATION_REQUIRED');
+        setErrorMsg(predRes.message || 'Report must be verified before prediction can be generated.');
+        setLoading(false);
+        return;
       }
 
       // If prediction is missing or insufficient, trigger active on-demand screening
@@ -84,15 +114,15 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         setReadiness(predRes.modelReadiness || repReadiness);
         setPageState('INSUFFICIENT_DATA');
       } else {
-        setPred(predRes || FALLBACK_PREDICTION);
-        setPageState('SUCCESS');
+        setPred(predRes);
+        setPageState('ERROR');
+        setErrorMsg('Prediction could not be retrieved from the backend server.');
       }
       setLoading(false);
     } catch (err) {
       console.error('[PredictionPage] Data retrieval error:', err);
-      setPred(FALLBACK_PREDICTION);
-      setReport(FALLBACK_REPORT);
-      setPageState('SUCCESS');
+      setPageState('ERROR');
+      setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
       setLoading(false);
     }
   };
@@ -152,6 +182,30 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
             </button>
             <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
               Go to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // CASE F: VERIFICATION REQUIRED — No prediction before backend verification
+  if (pageState === 'VERIFICATION_REQUIRED') {
+    return (
+      <div className="fade-in">
+        <DemoBanner />
+        <div style={{ padding: 40, textAlign: 'center', maxWidth: 640, margin: '40px auto', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
+          <h3 style={{ color: '#f59e0b', marginBottom: 12, fontSize: '1.4rem' }}>Verification Required</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: '0.92rem' }}>
+            {errorMsg || 'Laboratory values must be verified before a clinical prediction can be generated.'}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={() => onNavigate('extraction')}>
+              📄 Complete Lab Value Verification →
+            </button>
+            <button className="btn btn-secondary" onClick={() => onNavigate('reports')}>
+              📋 View All Reports
             </button>
           </div>
         </div>
@@ -238,6 +292,11 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {DISEASES.map(d => {
             const isSel = selectedDisease === d.id;
+            const diseaseReady = diseaseReadiness[d.id];
+            const badge = diseaseReady
+              ? READINESS_BADGE[diseaseReady.readiness] || READINESS_BADGE.UNKNOWN
+              : READINESS_BADGE.UNKNOWN;
+            const readinessLabel = diseaseReady ? diseaseReady.readiness.replace(/_/g, ' ') : 'Unknown';
             return (
               <button
                 key={d.id}
@@ -245,15 +304,24 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
                 onClick={() => setSelectedDisease(d.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                  borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                   background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
                   color: isSel ? '#090d16' : '#94a3b8',
                   border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
                   transition: 'all 0.15s ease'
                 }}
+                title={`${d.label}: ${readinessLabel} — ${diseaseReady?.readiness_reason || ''}`}
               >
                 <span>{d.icon}</span>
                 <span>{d.label}</span>
+                <span style={{
+                  fontSize: '0.62rem', padding: '1px 6px', borderRadius: 4,
+                  background: `rgba(${badge.color === '#10b981' ? '16,185,129' : badge.color === '#f59e0b' ? '245,158,11' : '239,68,68'},0.15)`,
+                  color: badge.color,
+                  fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
+                }}>
+                  {badge.label}
+                </span>
               </button>
             );
           })}
@@ -480,10 +548,15 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
 
       <SafetyDisclaimer compact />
 
-      {/* DISEASE SELECTOR TABS */}
+      {/* DISEASE SELECTOR TABS WITH READINESS BADGES */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {DISEASES.map(d => {
           const isSel = selectedDisease === d.id;
+          const diseaseReady = diseaseReadiness[d.id];
+          const badge = diseaseReady
+            ? READINESS_BADGE[diseaseReady.readiness] || READINESS_BADGE.UNKNOWN
+            : READINESS_BADGE.UNKNOWN;
+          const readinessLabel = diseaseReady ? diseaseReady.readiness.replace(/_/g, ' ') : 'Unknown';
           return (
             <button
               key={d.id}
@@ -491,15 +564,24 @@ export default function PredictionPage({ reportId = 'REP-9001', onNavigate }) {
               onClick={() => setSelectedDisease(d.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                 background: isSel ? '#00d4aa' : 'rgba(255,255,255,0.06)',
                 color: isSel ? '#090d16' : '#94a3b8',
                 border: isSel ? '1px solid #00d4aa' : '1px solid rgba(255,255,255,0.1)',
                 transition: 'all 0.15s ease'
               }}
+              title={`${d.label}: ${readinessLabel} — ${diseaseReady?.readiness_reason || ''}`}
             >
               <span>{d.icon}</span>
               <span>{d.label}</span>
+              <span style={{
+                fontSize: '0.62rem', padding: '1px 6px', borderRadius: 4,
+                background: `rgba(${badge.color === '#10b981' ? '16,185,129' : badge.color === '#f59e0b' ? '245,158,11' : '239,68,68'},0.15)`,
+                color: badge.color,
+                fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
+              }}>
+                {badge.label}
+              </span>
             </button>
           );
         })}
