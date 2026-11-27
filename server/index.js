@@ -9,6 +9,12 @@ const { v4: uuidv4 } = require('uuid');
 const { runPipeline, registerStream, removeStream } = require('./agents/orchestrator');
 const { vectorSearch } = require('./knowledge/medicalKB');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
+const { correlationIdMiddleware } = require('./middleware/correlation');
+const logger = require('./utils/logger');
+const { validateEnv } = require('./utils/envValidator');
+
+// Validate required environment variables before starting
+validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -63,6 +69,29 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
 // ---------------------------------------------------------------------------
+// Correlation ID + request tracing
+// ---------------------------------------------------------------------------
+
+app.use(correlationIdMiddleware);
+
+// Request timeout middleware — prevent hung requests from holding connections
+app.use((req, res, next) => {
+  const timeoutMs = parseInt(process.env.ML_INFERENCE_TIMEOUT_MS || '30000', 10);
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      req.log?.warn('Request timeout', { endpoint: req.originalUrl, timeoutMs });
+      res.status(504).json({
+        success: false,
+        error: { code: 'REQUEST_TIMEOUT', message: 'Request timed out. Please try again.' },
+        correlationId: req.correlationId,
+      });
+    }
+  }, timeoutMs);
+  res.on('finish', () => clearTimeout(timer));
+  next();
+});
+
+// ---------------------------------------------------------------------------
 // Body parsing
 // ---------------------------------------------------------------------------
 
@@ -112,12 +141,140 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  const checks = {};
+
+  // Backend check
+  checks.backend = {
+    status: 'HEALTHY',
+    detail: 'Express API accepting requests',
+  };
+
+  // Database check
+  let dbHealthy = true;
+  let dbDetail = 'SQLite database connection verified';
+  try {
+    const db = getDb();
+    db.prepare('SELECT 1').run();
+  } catch {
+    dbHealthy = false;
+    dbDetail = 'SQLite database connection failed';
+  }
+  checks.database = {
+    status: dbHealthy ? 'HEALTHY' : 'UNAVAILABLE',
+    detail: dbDetail,
+  };
+
+  // Overall health
+  const allHealthy = Object.values(checks).every((c) => c.status === 'HEALTHY');
+  const anyUnavailable = Object.values(checks).some((c) => c.status === 'UNAVAILABLE');
+
   res.json({
-    status: 'ok',
+    status: allHealthy ? 'HEALTHY' : anyUnavailable ? 'DEGRADED' : 'HEALTHY',
     timestamp: new Date().toISOString(),
     uptime: Math.round(process.uptime()),
     environment: process.env.NODE_ENV || 'production',
+    checks,
+    correlationId: req.correlationId,
   });
+});
+
+// GET /api/health/ready — Readiness probe for orchestrators (Kubernetes/Render)
+// Returns 200 when the service is ready to receive traffic, 503 otherwise.
+app.get('/api/health/ready', (req, res) => {
+  const ready = [];
+  let allReady = true;
+
+  // Database readiness
+  try {
+    const db = getDb();
+    db.prepare('SELECT 1').run();
+    ready.push({ name: 'database', status: 'READY', detail: 'SQLite connection OK' });
+  } catch {
+    ready.push({ name: 'database', status: 'NOT_READY', detail: 'SQLite connection failed' });
+    allReady = false;
+  }
+
+  // Python ML executable readiness
+  const { spawn } = require('child_process');
+  const pythonCmd = process.env.PYTHON_EXECUTABLE || process.env.PYTHON_PATH || 'python3';
+  try {
+    require('child_process').spawnSync(pythonCmd, ['--version'], { timeout: 3000 });
+    ready.push({ name: 'python-ml', status: 'READY', detail: 'Python executable available' });
+  } catch {
+    ready.push({ name: 'python-ml', status: 'NOT_READY', detail: 'Python executable not available' });
+    allReady = false;
+  }
+
+  // Model artifacts readiness
+  const fs = require('fs');
+  const modelPath = path.join(__dirname, 'ml', 'models', 'diabetes', 'model.joblib');
+  if (fs.existsSync(modelPath)) {
+    ready.push({ name: 'model-artifacts', status: 'READY', detail: 'Diabetes model artifact present' });
+  } else {
+    ready.push({ name: 'model-artifacts', status: 'NOT_READY', detail: 'Diabetes model artifact missing' });
+    allReady = false;
+  }
+
+  if (allReady) {
+    res.json({ status: 'READY', timestamp: new Date().toISOString(), checks: ready, correlationId: req.correlationId });
+  } else {
+    res.status(503).json({ status: 'NOT_READY', timestamp: new Date().toISOString(), checks: ready, correlationId: req.correlationId });
+  }
+});
+
+// GET /api/health/models — ML model availability and version tracking
+app.get('/api/health/models', (req, res) => {
+  try {
+    const modelRegistryPath = path.join(__dirname, 'ml', 'models', 'model_registry.json');
+    const fs = require('fs');
+    let registry = {};
+    if (fs.existsSync(modelRegistryPath)) {
+      registry = JSON.parse(fs.readFileSync(modelRegistryPath, 'utf-8'));
+    }
+
+    const models = {};
+    for (const [disease, info] of Object.entries(registry)) {
+      const modelPath = path.join(__dirname, 'ml', info.model_path || '');
+      const prepPath = path.join(__dirname, 'ml', info.preprocessor_path || '');
+      const artifactPresent = fs.existsSync(modelPath) && fs.existsSync(prepPath);
+
+      models[disease] = {
+        disease: info.disease || disease,
+        display_name: info.display_name || disease,
+        status: info.status || 'UNKNOWN',
+        readiness: info.readiness || 'UNKNOWN',
+        readiness_reason: info.readiness_reason || 'No reason documented.',
+        model_version: info.model_version || 'N/A',
+        algorithm: info.algorithm || 'N/A',
+        artifact_present: artifactPresent,
+        feature_count: info.feature_count || 0,
+        metrics: info.metrics || {},
+        dataset_provenance: info.dataset_provenance || {},
+      };
+    }
+
+    const availableCount = Object.values(models).filter((m) => m.status === 'TRAINED' && m.artifact_present).length;
+    const totalCount = Object.keys(models).length;
+
+    res.json({
+      success: true,
+      summary: {
+        total_models: totalCount,
+        available_models: availableCount,
+        unavailable_models: totalCount - availableCount,
+      },
+      models,
+      timestamp: new Date().toISOString(),
+      correlationId: req.correlationId,
+    });
+  } catch (err) {
+    req.log?.error('Failed to load model health', { err: err.message });
+    res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to load model health information' },
+      correlationId: req.correlationId,
+    });
+  }
 });
 
 app.get('/api/chat', (req, res) => {
@@ -140,6 +297,7 @@ app.use('/api/ml', authenticateToken, require('./routes/ml'));
 app.use('/api/health-companion', authenticateToken, require('./routes/healthCompanion'));
 app.use('/api/orchestrator', authenticateToken, require('./routes/orchestrator'));
 app.use('/api/risk', authenticateToken, require('./routes/risk'));
+app.use('/api/backup', authenticateToken, require('./routes/backup'));
 const nlpModule = require('./routes/nlp');
 app.use('/api/nlp', authenticateToken, nlpModule.router);
 app.post('/api/assessments', authenticateToken, nlpModule.handleAssessment);
@@ -364,7 +522,8 @@ app.get('/api/system/status', authenticateToken, (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  const correlationId = req.correlationId || 'unknown';
+  req.log?.error('Unhandled error', { err: err.message, correlationId: correlationId });
 
   // Multer file upload errors
   if (err instanceof multer.MulterError) {
@@ -372,17 +531,20 @@ app.use((err, req, res, next) => {
       return res.status(400).json({
         success: false,
         error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds the 15 MB limit.' },
+        correlationId: correlationId,
       });
     }
     return res.status(400).json({
       success: false,
       error: { code: 'UPLOAD_ERROR', message: err.message },
+      correlationId: correlationId,
     });
   }
 
   res.status(500).json({
     success: false,
     error: { code: 'SERVER_ERROR', message: 'Internal server error' },
+    correlationId: correlationId,
   });
 });
 
@@ -391,9 +553,78 @@ app.use((err, req, res, next) => {
 // ---------------------------------------------------------------------------
 
 getDb();
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🏥 MediAgent Server running on port ${PORT}`);
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info('MediAgent Server started', {
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    correlationId: 'system-startup',
+  });
+  console.log('\n🏥 MediAgent Server running on port ' + PORT);
   console.log('📡 API endpoints ready');
   console.log('🔐 Authentication middleware active');
   console.log('🤖 Agent pipeline initialized\n');
+});
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown (Task 10: Backend Reliability)
+// Handles SIGTERM (Render/Heroku) and SIGINT (Ctrl+C) by closing the DB,
+// stopping the HTTP server, and exiting cleanly.
+// ---------------------------------------------------------------------------
+
+let shuttingDown = false;
+
+function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info('Received shutdown signal', { signal: signal, correlationId: 'system-shutdown' });
+  console.log('\n🛑 Received ' + signal + '. Shutting down gracefully...');
+
+  // Stop accepting new connections
+  server.close(function(closeErr) {
+    if (closeErr) {
+      logger.error('Error closing HTTP server', { err: closeErr.message, correlationId: 'system-shutdown' });
+      console.error('Error closing server:', closeErr.message);
+    } else {
+      logger.info('HTTP server closed', { correlationId: 'system-shutdown' });
+      console.log('✓ HTTP server closed');
+    }
+
+    // Close SQLite database
+    try {
+      var db = getDb();
+      if (db && typeof db.close === 'function') {
+        db.close(function(dbCloseErr) {
+          if (dbCloseErr) {
+            logger.error('Error closing database', { err: dbCloseErr.message, correlationId: 'system-shutdown' });
+          } else {
+            logger.info('Database connection closed', { correlationId: 'system-shutdown' });
+            console.log('✓ Database connection closed');
+          }
+          process.exit(closeErr || dbCloseErr ? 1 : 0);
+        });
+      } else {
+        process.exit(closeErr ? 1 : 0);
+      }
+    } catch (dbCloseErr) {
+      logger.error('Error accessing database for shutdown', { err: dbCloseErr.message, correlationId: 'system-shutdown' });
+      process.exit(1);
+    }
+  });
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions and unhandled rejections without crashing silently
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { err: err.message, stack: err.stack, correlationId: 'system-uncaught' });
+  console.error('Uncaught exception:', err.message);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { reason: String(reason), correlationId: 'system-rejection' });
+  console.error('Unhandled rejection:', String(reason));
 });

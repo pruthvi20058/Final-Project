@@ -292,6 +292,56 @@ The app will be available at:
 
 ---
 
+## 🐳 Docker Deployment (Task 10)
+
+MediAgent supports full containerized deployment via Docker Compose:
+
+```bash
+# Copy environment file
+cp .env.example .env
+# Edit .env with production values (JWT_SECRET, CORS_ORIGIN)
+
+# Build and start all services
+docker compose up --build
+
+# Run detached
+docker compose up -d
+
+# Stop
+docker compose down
+```
+
+**Services:**
+- `backend` (port 3001): Express API + SQLite + Python ML
+- `frontend` (port 80): React app served by nginx
+
+**Volume:** `mediagent_data` persists SQLite DB, uploads, and backups.
+
+**Health checks:** Backend exposes `GET /api/health/ready` for orchestrators.
+
+See `docs/DEPLOYMENT_GUIDE.md` for full deployment documentation.
+
+---
+
+## 📋 Production Readiness (Task 10)
+
+| Area | Status | Details |
+|------|--------|---------|
+| Environment config | ✅ Complete | `.env.example` + startup validation |
+| Structured logging | ✅ Complete | JSON logs with correlation IDs |
+| Request timeouts | ✅ Complete | Configurable via `ML_INFERENCE_TIMEOUT_MS` |
+| Graceful shutdown | ✅ Complete | SIGTERM/SIGINT handling |
+| Health endpoints | ✅ Complete | `/api/health`, `/api/health/ready`, `/api/health/models` |
+| Docker containerization | ✅ Complete | Frontend + Backend + compose |
+| Backup & restore | ✅ Complete | SQLite backup/restore + retention |
+| Correlation IDs | ✅ Complete | `X-Correlation-ID` header on all requests |
+| Secure JWT secrets | ✅ Complete | Validation rejects placeholder secrets |
+| CORS from env | ✅ Complete | `CORS_ORIGIN` restricts origins |
+
+See `docs/PRODUCTION_READINESS.md` for full details.
+
+---
+
 ## 📂 Project Structure
 
 ```

@@ -1,0 +1,69 @@
+# MediAgent — .dockerignore (Task 10: Docker Containerization)
+
+# Node.js
+node_modules
+npm-debug.log
+npm-debug.log.*
+yarn-debug.log
+yarn-error.log
+yarn-error.log.*
+
+# Build outputs
+dist
+build
+*.next
+out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads and backups
+uploads
+backups
+
+# Logs
+logs
+*.log
+
+# Python caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+env/
+venv/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Testing
+coverage
+.nyc_output
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Docker
+.dockerignore
+docker-compose.yml

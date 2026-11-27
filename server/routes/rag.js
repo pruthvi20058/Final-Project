@@ -15,7 +15,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('./middleware/auth'); // may not exist; see below
+const { authenticateToken } = require('../middleware/auth');
 const {
   retrieveMedicalEvidence,
   sanitizeQuery,

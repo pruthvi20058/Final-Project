@@ -153,3 +153,58 @@ MediAgent is a **clinical decision support screening tool**, not a diagnostic sy
 None of these limitations represent hidden or suppressed failures. All are documented here and reflected in the test results in `docs/TESTING_AND_VALIDATION.md`.
 
 ---
+
+---
+
+## 8. Task 10 — Production Readiness Limitations
+
+### 8.1 No Frontend Test Framework
+- **Issue:** React frontend has no Jest/React Testing Library setup
+- **Impact:** Frontend components are not unit-tested
+- **Files affected:** `client/` — no test framework
+- **Status:** NOT VERIFIED
+
+### 8.2 No Docker Build Verification in Sandbox
+- **Issue:** Docker not available in this sandbox environment
+- **Impact:** `docker compose up --build` not verified locally
+- **Mitigation:** Dockerfiles and docker-compose.yml are syntactically valid
+- **Status:** NOT VERIFIED
+
+### 8.3 No Production Deployment Testing
+- **Issue:** Render/Vercel deployment not tested
+- **Impact:** Platform-specific limitations unknown
+- **Files affected:** `render.yaml`, `vercel.json`
+- **Status:** NOT VERIFIED
+
+### 8.4 Better-SQLite3 Native Module
+- **Issue:** `better-sqlite3` is a native C++ module requiring compilation
+- **Impact:** Server cannot start in sandbox without native module
+- **Mitigation:** Works in environments where native modules compile (CI/production)
+- **Status:** NOT VERIFIED in sandbox
+
+### 8.5 Python ML Dependencies
+- **Issue:** Python dependencies (scikit-learn, joblib, shap, pandas, numpy) required for ML inference
+- **Impact:** ML prediction unavailable if Python or dependencies missing
+- **Mitigation:** Health checks report Python as UNAVAILABLE; graceful degradation
+- **Status:** PARTIALLY VERIFIED
+
+### 8.6 OCR System Dependencies
+- **Issue:** Tesseract OCR and poppler-utils required for document processing
+- **Impact:** OCR unavailable without system packages
+- **Mitigation:** Dockerfile includes these packages
+- **Status:** NOT VERIFIED
+
+---
+
+## 9. Honest Assessment Summary
+
+MediAgent is a **clinical decision support screening tool**, not a diagnostic system. Key limitations:
+
+1. **No model is clinically validated** — all are screening models with varying performance (0.56–1.0 accuracy depending on disease)
+2. **Typhoid model is not trained** — gated and returns unavailable
+3. **Kannada negation is broken** — pre-existing NLP issue affecting one language
+4. **No frontend testing** — React components untested
+5. **No production deployment testing** — sandbox cannot run the Express server
+6. **All models include clinical disclaimers** — results should be evaluated by qualified healthcare professionals
+
+None of these limitations represent hidden or suppressed failures. All are documented here and reflected in the test results in `docs/TESTING_AND_VALIDATION.md`.
