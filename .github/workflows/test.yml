@@ -90,7 +90,8 @@ jobs:
       - name: Run frontend unit tests
         run: |
           cd client
-          npm run test
+          node --version
+          npx vitest run --reporter=verbose
 
       - name: Build frontend for production
         run: |
