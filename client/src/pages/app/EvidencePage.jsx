@@ -47,7 +47,7 @@ export default function EvidencePage({ predictionId, reportId = 'REP-9001', onNa
     return (
       <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
         <div className="spinner" style={{ margin: '0 auto 16px' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Querying FAISS medical vector database...</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Querying medical evidence database...</p>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export default function EvidencePage({ predictionId, reportId = 'REP-9001', onNa
       <div className="page-header" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>📚 Medical Evidence Retrieval (RAG)</h2>
-          <p>FAISS vector search matching findings from <strong style={{ color: '#00d4aa' }}>{report.filename}</strong> against indexed clinical practice guidelines.</p>
+          <p>TF-IDF hybrid search matching findings from <strong style={{ color: '#00d4aa' }}>{report.filename}</strong> against indexed clinical practice guidelines.</p>
         </div>
         <button className="btn btn-primary" onClick={() => onNavigate('risk-uncertainty')}>
           View Risk & Uncertainty Assessment →
@@ -79,7 +79,7 @@ export default function EvidencePage({ predictionId, reportId = 'REP-9001', onNa
             <div>
               <h4 style={{ color: '#fff', fontSize: '1rem', marginBottom: 2 }}>Prediction–Evidence Consistency Status</h4>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                FAISS vector relevance match score: <strong style={{ color: '#00d4aa' }}>{evidence.consistencyScore}%</strong>
+                Evidence relevance match score: <strong style={{ color: '#00d4aa' }}>{evidence.consistencyScore}%</strong>
               </p>
             </div>
           </div>

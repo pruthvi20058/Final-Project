@@ -4,10 +4,10 @@ import StatusBadge from '../../components/StatusBadge';
 
 export default function HistoryPage({ onNavigate }) {
   const historyTimeline = [
-    { date: '2026-08-18 10:16', type: 'Clinical Sign-Off', detail: 'Dr. Pavan Kumar ACCEPTED AI decision support report for REP-9001 (Sarah Johnson).', status: 'accepted' },
-    { date: '2026-08-18 10:15', type: 'Analysis Complete', detail: '11-Step agentic pipeline completed analysis for REP-9001 (Type 2 Diabetes Risk: 74%).', status: 'complete' },
-    { date: '2026-08-17 14:32', type: 'Report Uploaded', detail: 'Cardiac biomarkers report uploaded for Michael Chen (PAT-8002).', status: 'analyzed' },
-    { date: '2026-08-15 09:10', type: 'Patient Registered', detail: 'Emma Williams (PAT-8003) added to clinical registry.', status: 'passed' }
+    { date: '2026-08-18 10:16', type: 'Clinical Sign-Off', detail: 'Physician reviewed and accepted AI decision support report for REP-9001.', status: 'accepted' },
+    { date: '2026-08-18 10:15', type: 'Analysis Complete', detail: 'Agentic pipeline completed analysis for REP-9001 (Type 2 Diabetes Risk: 74%).', status: 'complete' },
+    { date: '2026-08-17 14:32', type: 'Report Uploaded', detail: 'Cardiac biomarkers report uploaded for PAT-8002.', status: 'analyzed' },
+    { date: '2026-08-15 09:10', type: 'Patient Registered', detail: 'New patient record PAT-8003 added to clinical registry.', status: 'passed' }
   ];
 
   return (

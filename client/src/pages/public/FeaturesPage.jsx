@@ -6,8 +6,8 @@ export default function FeaturesPage({ onNavigate, onEnterApp }) {
   const features = [
     { title: '1. AI Laboratory Report Extraction', desc: 'Parses unstructured image/PDF lab documents using OCR and vision processing into structured lab test tables.' },
     { title: '2. Clinical Data Validation', desc: 'Validates numeric ranges, units, and tags abnormal values with high/low/critical markers.' },
-    { title: '3. Explainable Disease Prediction', desc: 'Calibrated XGBoost models predict top disease probabilities with 95% confidence intervals.' },
-    { title: '4. Medical Evidence Retrieval (RAG)', desc: 'Indexes medical guidelines and literature using FAISS vector embeddings to cite clinical rationale.' },
+    { title: '3. Explainable Disease Prediction', desc: 'Logistic regression models predict disease probabilities with confidence intervals.' },
+    { title: '4. Medical Evidence Retrieval (RAG)', desc: 'TF-IDF hybrid search retrieves clinical guidelines to cite evidence rationale.' },
     { title: '5. Risk & Uncertainty Engine', desc: 'Calculates overall patient risk score and quantifies data completeness and model certainty.' },
     { title: '6. Longitudinal Trend Analysis', desc: 'Plots historical lab value progression (e.g. HbA1c trajectory over time) with Recharts charts.' },
     { title: '7. Evidence Conflict Detection', desc: 'Detects discrepancies between model output and clinical guideline recommendations.' },

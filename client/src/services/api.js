@@ -74,10 +74,13 @@ async function request(endpoint, options = {}) {
 export const IS_DEMO = false;
 
 // --- DEMO SEED DATA (ISOLATED FOR PREVIEW ONLY) ---
+// Synthetic fixtures for software testing — NO patient names or real PII.
+// All values are placeholder/synthetic and clearly labelled as demo content.
+// Uses PAT- prefix IDs for isolation from real patient records.
 export const DEMO_PATIENTS = [
   {
-    id: 'PAT-8001',
-    name: 'Sarah Johnson',
+    id: 'PAT-DEMO-001',
+    name: 'Demo Patient One',
     age: 45,
     gender: 'Female',
     bloodType: 'A+',
@@ -89,12 +92,12 @@ export const DEMO_PATIENTS = [
       { condition: 'Hypertension', diagnosed: '2020', status: 'Managed' }
     ],
     currentMedications: ['Metformin 500mg BID', 'Lisinopril 10mg Daily'],
-    emergencyContact: 'John Johnson (Husband) — 555-0101',
+    emergencyContact: 'Demo Contact One — 555-0101',
     createdAt: '2026-08-10'
   },
   {
-    id: 'PAT-8002',
-    name: 'Michael Chen',
+    id: 'PAT-DEMO-002',
+    name: 'Demo Patient Two',
     age: 62,
     gender: 'Male',
     bloodType: 'O-',
@@ -106,7 +109,7 @@ export const DEMO_PATIENTS = [
       { condition: 'Hyperlipidemia', diagnosed: '2016', status: 'Managed' }
     ],
     currentMedications: ['Atorvastatin 40mg Daily', 'Clopidogrel 75mg Daily'],
-    emergencyContact: 'Linda Chen (Wife) — 555-0202',
+    emergencyContact: 'Demo Contact Two — 555-0202',
     createdAt: '2026-08-12'
   }
 ];
@@ -548,6 +551,43 @@ export const mlService = {
       method: 'POST',
       body: JSON.stringify({ disease, features })
     });
+  }
+};
+
+// --- HEALTH COMPANION SERVICE ---
+export const healthCompanionService = {
+  async getChatSessions() {
+    const data = await request('/health-companion/chat/sessions');
+    return data.sessions || [];
+  },
+  async getChatHistory(sessionId) {
+    const data = await request(`/health-companion/chat/sessions/${sessionId}`);
+    return data.messages || [];
+  },
+  async deleteChatSession(sessionId) {
+    return request(`/health-companion/chat/sessions/${sessionId}`, {
+      method: 'DELETE'
+    });
+  },
+  async getMedicines(query, category) {
+    let url = '/health-companion/medicines?limit=100';
+    if (query && query.trim()) url += `&query=${encodeURIComponent(query.trim())}`;
+    if (category && category !== 'All') url += `&category=${encodeURIComponent(category)}`;
+    const data = await request(url);
+    return data.medicines || [];
+  },
+  async identifyMedicineFromImage(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await fetch(`${API_BASE}/health-companion/medicines/identify-image`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'Failed to analyze medicine packaging image.');
+    }
+    return data;
   }
 };
 

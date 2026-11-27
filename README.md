@@ -15,7 +15,9 @@
 
 ## 📌 Overview
 
-**MediAgent** is an end-to-end, full-stack intelligent health decision support platform built for public service use. It combines **machine learning disease prediction**, **OCR-powered lab report analysis**, **multilingual voice NLP**, **RAG-grounded medical chatbot**, and **XAI explainability** into a single unified clinical dashboard.
+**MediAgent** is an end-to-end, full-stack intelligent health decision support platform built for public service use. It combines **machine learning disease prediction**, **OCR-powered lab report analysis**, **multilingual NLP**, **RAG-grounded medical chatbot**, and **XAI explainability** into a single unified clinical dashboard.
+
+> 📚 **Documentation**: 12 technical documents in `/docs/` — including system architecture (10 Mermaid diagrams), model evaluation, dataset documentation, final audit report, demo workflow, and 60+ viva Q&A.
 
 > ⚠️ **Clinical Disclaimer**: This system is a research prototype. All ML predictions are based on publicly available datasets and must NOT be used as a substitute for professional medical diagnosis. Independent clinical validation is required.
 
@@ -74,10 +76,10 @@
 ├─────────────────────────┴──────────────────────────────────────┤
 │                   ML / AI Pipeline                             │
 │  • Scikit-Learn (Logistic Regression, Random Forest)          │
-│  • SHAP (TreeSHAP / LinearExplainer XAI)                      │
-│  • FAISS Vector Store (RAG evidence retrieval)                │
+│  • SHAP (LinearExplainer / Feature Importances XAI)                      │
+│  • TF-IDF Hybrid Vector Store (RAG evidence retrieval)                │
 │  • Tesseract.js OCR (lab report extraction)                   │
-│  • Web Speech API + ElevenLabs TTS (multilingual voice)       │
+│  • Web Speech API (multilingual voice)       │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,18 +90,18 @@
 ### 🤖 Machine Learning Disease Prediction
 | Disease | Dataset Source | Model | Status |
 |---------|---------------|-------|--------|
-| Diabetes | Pima Indians (UCI) — 768 records | LR + RF Soft-Voting Ensemble | ✅ Active |
+| Diabetes | Pima Indians (UCI) — 768 records | Logistic Regression | ✅ Active |
 | Dengue | Dengue Clinical Dataset — 1,000 records | Random Forest | ✅ Active |
 | Malaria | Malaria Clinical (WHO-aligned) — 337 records | Logistic Regression | ✅ Active |
 | Chikungunya | SINAN Brazil — 259,619 notifications | Random Forest | ✅ Active |
 | Typhoid | — | Guarded (no authenticated dataset found) | 🔒 Guarded |
 
-- **No synthetic patient data** used at any stage — strictly real, public datasets only
+- **No real patient data** used at any stage — synthetic fixtures for testing only; real public datasets for ML training
 - Soft-voting probability calibration, confusion matrix, ROC-AUC evaluation
 - Dataset provenance documented in `server/ml/data/DATASET_PROVENANCE.md`
 
 ### 📊 Explainable AI (XAI) — SHAP
-- Real TreeSHAP / LinearExplainer integration (not approximations)
+- SHAP LinearExplainer integration (not approximations)
 - Feature attribution waterfall charts per prediction
 - Additive consistency verification (Σ SHAP = prediction - base value)
 - 13/13 SHAP test suite passes verified
@@ -111,14 +113,14 @@
 - Human-in-the-loop physician sign-off workflow
 
 ### 🤖 RAG-Powered Health Companion Chatbot
-- FAISS vector store with WHO, MoHFW, NCDC, CDC, NHS knowledge base
+- TF-IDF hybrid vector store with WHO, MoHFW, NCDC, CDC, NHS knowledge base
 - 6 disease topics: Dengue, Malaria, Typhoid, Chikungunya, Jaundice, Viral Fever
 - Emergency warning sign detection with urgent alert escalation
 - Mandatory medical safety disclaimer on every response
 
 ### 🌐 Multilingual Voice NLP Assistant (Task 5)
-- 10 Indian languages: Kannada, Hindi, Telugu, Tamil, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia
-- Browser Web Speech API + Edge-TTS neural TTS synthesis (Python fallback: gTTS)
+- 10 languages: English, Kannada, Hindi, Tamil, Telugu, Malayalam, Marathi, Bengali, Gujarati, Punjabi
+- Browser Web Speech API (voice input/output)
 - Native script detection (Devanagari, Kannada, Tamil, Telugu, Malayalam, Bengali, Gurmukhi)
 - **7-step clinical workflow** with mandatory patient verification (Step 4)
 - Symptom extraction: name, duration, severity, negation, temporal context

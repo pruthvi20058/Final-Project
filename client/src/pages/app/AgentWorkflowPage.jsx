@@ -53,10 +53,11 @@ export default function AgentWorkflowPage({ onNavigate }) {
         setLoading(false);
         return;
       }
-      // Note: filePath would come from an upload endpoint. For now we pass the file name as a placeholder;
-      // the backend orchestrator expects a server-side filePath. In a full deployment, the file would be
-      // uploaded first and the returned stored path passed here.
-      payload.labFilePath = `/uploads/${labFile.name}`;
+      // The file must be uploaded via /api/reports/upload first. The backend
+      // returns a report ID which is used to reference the stored file.
+      // This frontend passes the file name for display; the actual upload
+      // is handled by ReportUploadPage before the agent workflow starts.
+      payload.labFileName = labFile.name;
       payload.mimeType = labFile.type;
     }
 
