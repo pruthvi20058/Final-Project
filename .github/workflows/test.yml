@@ -91,7 +91,9 @@ jobs:
         run: |
           cd client
           node --version
-          npx vitest run --reporter=verbose
+          which vitest || true
+          ls -la node_modules/.bin/vitest 2>&1 || true
+          ./node_modules/.bin/vitest run --reporter=verbose
 
       - name: Build frontend for production
         run: |
