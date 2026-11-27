@@ -5,7 +5,7 @@
 **Multi-Modal AI · Retrieval-Augmented Generation · Explainable ML · Multilingual NLP**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Frontend-Vercel-black?style=for-the-badge&logo=vercel)](https://final-project1-nine-sigma.vercel.app/)
-[![Backend Live](https://img.shields.io/badge/Backend%20API-Render-46E3B7?style=for-the-badge&logo=render)](https://mediagent-backend-nht2.onrender.com)
+[![Backend Live](https://img.shields.io/badge/Backend%20API-Render-46E3B7?style=for-the-badge&logo=render)](https://mediagent-backend-px17.onrender.com)
 [![GitHub](https://img.shields.io/badge/GitHub-pruthvi20058-181717?style=for-the-badge&logo=github)](https://github.com/pruthvi20058/Final-Project)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
@@ -28,19 +28,19 @@
 | Service | Platform | Live URL / 1-Click Launch | Status |
 |---------|----------|---------------------------|--------|
 | 🌐 **Frontend (React/Vite)** | Vercel | [**final-project1-nine-sigma.vercel.app**](https://final-project1-nine-sigma.vercel.app/) | 🟢 **LIVE** |
-| ⚙️ **Backend (Express + ML)** | Render | [**mediagent-backend-nht2.onrender.com**](https://mediagent-backend-nht2.onrender.com) | 🟢 **LIVE** |
+| ⚙️ **Backend (Express + ML)** | Render | [**mediagent-backend-px17.onrender.com**](https://mediagent-backend-px17.onrender.com) | 🟢 **LIVE** |
 | 🌐 **Frontend (Backup)** | GitHub Pages | [pruthvi20058.github.io/Final-Project](https://pruthvi20058.github.io/Final-Project/) | 🟢 Active |
 | 📦 **Source Code** | GitHub | [pruthvi20058/Final-Project](https://github.com/pruthvi20058/Final-Project) | 🟢 Up-to-date |
 
 ### ⚡ 1-Click Deployment Buttons
 
 - **Deploy Frontend to Vercel**:
-  [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpruthvi20058%2FFinal-Project&root-directory=client&env=VITE_API_URL&envDescription=Backend+URL&envDefault=https%3A%2F%2Fmediagent-backend-nht2.onrender.com)
+  [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpruthvi20058%2FFinal-Project&root-directory=client&env=VITE_API_URL&envDescription=Backend+URL&envDefault=https%3A%2F%2Fmediagent-backend-px17.onrender.com)
 
 - **Deploy Backend to Render**:
   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/pruthvi20058/Final-Project)
 
-> 💡 **Auto-Configuration**: The frontend automatically routes API calls to `https://mediagent-backend-nht2.onrender.com` in production environments — zero manual configuration needed!
+> 💡 **Auto-Configuration**: The frontend automatically routes API calls to `https://mediagent-backend-px17.onrender.com` in production environments — zero manual configuration needed!
 
 ---
 
@@ -279,7 +279,7 @@ The app will be available at:
    - **Build Command**: `npm install && pip install scikit-learn shap pandas numpy joblib`
    - **Start Command**: `node index.js`
    - **Plan**: Free
-4. Deploy and copy the service URL (e.g. `https://mediagent-backend.onrender.com`)
+4. Deploy and copy the service URL (e.g. `https://mediagent-backend-px17.onrender.com`)
 
 ### Deploy Frontend to Vercel
 
@@ -289,7 +289,7 @@ The app will be available at:
    - **Framework Preset**: Vite
    - **Root Directory**: `client`
 4. Add environment variable:
-   - `VITE_API_URL` = `https://mediagent-backend.onrender.com`
+   - `VITE_API_URL` = `https://mediagent-backend-px17.onrender.com`
 5. Deploy → get your live URL
 
 ---
