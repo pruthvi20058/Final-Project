@@ -2,7 +2,7 @@ import React from 'react';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 
-export default function HowItWorksPage({ onNavigate, onEnterApp }) {
+export default function HowItWorksPage({ onNavigate, onEnterApp, doctor, onLogout }) {
   const stages = [
     { num: '01', title: 'Laboratory Report Upload', desc: 'Upload JPG, PNG, or PDF lab report documents.' },
     { num: '02', title: 'Computer Vision & Preprocessing', desc: 'Noise reduction, thresholding, and contour detection for document orientation.' },
@@ -19,7 +19,7 @@ export default function HowItWorksPage({ onNavigate, onEnterApp }) {
 
   return (
     <div style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', minHeight: '100vh' }}>
-      <Navbar activePage="how-it-works" onNavigate={onNavigate} onEnterApp={onEnterApp} />
+      <Navbar activePage="how-it-works" onNavigate={onNavigate} onEnterApp={onEnterApp} doctor={doctor} onLogout={onLogout} />
 
       <div style={{ maxWidth: 1000, margin: '60px auto', padding: '0 24px' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: 12 }}>11-Stage Agentic Workflow</h1>

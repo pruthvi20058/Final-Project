@@ -6,10 +6,10 @@ import Hero3DCanvas from './Hero3DCanvas';
 import Interactive3DCard from './Interactive3DCard';
 import Interactive3DEngineHub from './Interactive3DEngineHub';
 
-export default function LandingPage({ onNavigate, onEnterApp }) {
+export default function LandingPage({ onNavigate, onEnterApp, doctor, onLogout }) {
   return (
     <div style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', minHeight: '100vh', position: 'relative', overflowX: 'hidden' }}>
-      <Navbar activePage="home" onNavigate={onNavigate} onEnterApp={onEnterApp} />
+      <Navbar activePage="home" onNavigate={onNavigate} onEnterApp={onEnterApp} doctor={doctor} onLogout={onLogout} />
 
       {/* SECTION 1: 3D ANIMATED HERO SECTION */}
       <section style={{ position: 'relative', padding: '90px 24px 70px', minHeight: '85vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

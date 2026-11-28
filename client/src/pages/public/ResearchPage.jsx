@@ -2,10 +2,10 @@ import React from 'react';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 
-export default function ResearchPage({ onNavigate, onEnterApp }) {
+export default function ResearchPage({ onNavigate, onEnterApp, doctor, onLogout }) {
   return (
     <div style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', minHeight: '100vh' }}>
-      <Navbar activePage="research" onNavigate={onNavigate} onEnterApp={onEnterApp} />
+      <Navbar activePage="research" onNavigate={onNavigate} onEnterApp={onEnterApp} doctor={doctor} onLogout={onLogout} />
 
       <div style={{ maxWidth: 1100, margin: '60px auto', padding: '0 24px' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: 12 }}>MediAgent Research & Benchmarks</h1>

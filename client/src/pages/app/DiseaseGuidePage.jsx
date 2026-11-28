@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../../services/api';
 
 const TOPIC_BADGES = {
   chikungunya: { label: 'Viral Disease', color: '#0d9488', icon: '🦟' },
@@ -86,7 +87,7 @@ export default function DiseaseGuidePage({ onNavigate }) {
 
   const fetchDiseases = async () => {
     try {
-      const res = await fetch('/api/health-companion/diseases');
+      const res = await fetch(`${API_BASE}/health-companion/diseases`);
       const data = await res.json();
       if (data.success && data.diseases) {
         setDiseases(data.diseases);
@@ -99,7 +100,7 @@ export default function DiseaseGuidePage({ onNavigate }) {
   const fetchDiseaseDetails = async (slug) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/health-companion/diseases/${slug}`);
+      const res = await fetch(`${API_BASE}/health-companion/diseases/${slug}`);
       const data = await res.json();
       if (data.success && data.disease) {
         setDiseaseDetails(data.disease);

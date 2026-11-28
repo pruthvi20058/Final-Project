@@ -41,7 +41,7 @@ import DatasetStudioPage from './pages/admin/DatasetStudioPage';
 import KnowledgeBasePage from './pages/admin/KnowledgeBasePage';
 import SystemStatusPage from './pages/admin/SystemStatusPage';
 
-import { patientService } from './services/api';
+import { API_BASE, patientService } from './services/api';
 
 const PUBLIC_PAGES = ['home', 'about', 'features', 'how-it-works', 'research', 'contact'];
 const AUTH_PAGES = ['login', 'register', 'forgot-password'];
@@ -83,7 +83,7 @@ export default function App() {
       try {
         const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
         if (token) {
-          const res = await fetch('/api/auth/me', {
+          const res = await fetch(`${API_BASE}/auth/me`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
@@ -153,7 +153,7 @@ export default function App() {
     try {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
       if (token) {
-        await fetch('/api/auth/logout', {
+        await fetch(`${API_BASE}/auth/logout`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -186,21 +186,16 @@ export default function App() {
     );
   }
 
-  // Require authentication for application routes
-  const requiresAuth = !PUBLIC_PAGES.includes(activePage) && !AUTH_PAGES.includes(activePage);
-  if (requiresAuth && !doctor) {
-    setActivePage('login');
-  }
-
   // PUBLIC ROUTES
   if (PUBLIC_PAGES.includes(activePage)) {
+    const enterApp = () => setActivePage(doctor ? 'dashboard' : 'login');
     switch (activePage) {
-      case 'about': return <AboutPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
-      case 'features': return <FeaturesPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
-      case 'how-it-works': return <HowItWorksPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
-      case 'research': return <ResearchPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
-      case 'contact': return <ContactPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
-      default: return <LandingPage onNavigate={setActivePage} onEnterApp={() => setActivePage(doctor ? 'dashboard' : 'login')} />;
+      case 'about': return <AboutPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
+      case 'features': return <FeaturesPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
+      case 'how-it-works': return <HowItWorksPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
+      case 'research': return <ResearchPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
+      case 'contact': return <ContactPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
+      default: return <LandingPage onNavigate={setActivePage} onEnterApp={enterApp} doctor={doctor} onLogout={handleLogout} />;
     }
   }
 
@@ -211,6 +206,11 @@ export default function App() {
       case 'forgot-password': return <ForgotPasswordPage onNavigate={setActivePage} />;
       default: return <LoginPage onLogin={handleLogin} onNavigate={setActivePage} />;
     }
+  }
+
+  // Require authentication for application routes without mutating state during render
+  if (!doctor) {
+    return <LoginPage onLogin={handleLogin} onNavigate={setActivePage} />;
   }
 
   // APPLICATION ROUTING (Sidebar Layout)

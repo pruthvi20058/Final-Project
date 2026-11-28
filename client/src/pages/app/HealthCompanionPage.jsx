@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../../services/api';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -141,7 +142,7 @@ export default function HealthCompanionPage({ onNavigate }) {
       formData.append('audio', audioBlob, 'rec.webm');
       formData.append('language', selectedLanguage);
 
-      const res = await fetch('/api/health-companion/voice/transcribe', {
+      const res = await fetch(`${API_BASE}/health-companion/voice/transcribe`, {
         method: 'POST',
         body: formData
       });
@@ -179,7 +180,7 @@ export default function HealthCompanionPage({ onNavigate }) {
     setErrorMessage(null);
 
     try {
-      const res = await fetch('/api/health-companion/chat', {
+      const res = await fetch(`${API_BASE}/health-companion/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -227,7 +228,7 @@ export default function HealthCompanionPage({ onNavigate }) {
   const readAloud = async (text) => {
     try {
       setIsProcessing(true);
-      const res = await fetch('/api/health-companion/voice/synthesize', {
+      const res = await fetch(`${API_BASE}/health-companion/voice/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, language: selectedLanguage })
@@ -246,7 +247,7 @@ export default function HealthCompanionPage({ onNavigate }) {
   const clearChat = async () => {
     if (window.confirm('Clear health companion conversation history?')) {
       try {
-        await fetch(`/api/health-companion/chat/sessions/${sessionId}`, { method: 'DELETE' });
+        await fetch(`${API_BASE}/health-companion/chat/sessions/${sessionId}`, { method: 'DELETE' });
       } catch {}
       setMessages([
         {

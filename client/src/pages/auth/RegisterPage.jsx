@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { API_BASE } from '../../services/api';
 
-const API = '/api';
+const API = API_BASE;
 
 export default function RegisterPage({ onNavigate, onLogin }) {
   const [name, setName] = useState('');
@@ -11,7 +12,7 @@ export default function RegisterPage({ onNavigate, onLogin }) {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [role, setRole] = useState('doctor');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,11 +46,33 @@ export default function RegisterPage({ onNavigate, onLogin }) {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        onLogin(data.doctor);
+        if (data.token) {
+          localStorage.setItem('mediagent_token', data.token);
+          localStorage.setItem('mediagent_doctor', JSON.stringify(data.doctor));
+          onLogin(data.doctor);
+          return;
+        }
+        // Automatically obtain JWT token so subsequent dashboard API calls are authenticated
+        const loginRes = await fetch(`${API}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        });
+        const loginData = await loginRes.json().catch(() => ({}));
+        if (loginRes.ok && loginData.token) {
+          localStorage.setItem('mediagent_token', loginData.token);
+          localStorage.setItem('mediagent_doctor', JSON.stringify(loginData.doctor));
+          onLogin(loginData.doctor);
+          return;
+        }
+        onNavigate('login');
         return;
       }
 
-      setError(data.error?.message || 'Registration failed. Please try again.');
+      const msg = typeof data.error === 'string'
+        ? data.error
+        : (data.error?.message || data.message || 'Registration failed. Please try again.');
+      setError(msg);
     } catch (err) {
       setError('Unable to connect to the MediAgent server. Please try again later.');
     } finally {

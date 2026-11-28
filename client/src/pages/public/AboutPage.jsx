@@ -2,10 +2,10 @@ import React from 'react';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 
-export default function AboutPage({ onNavigate, onEnterApp }) {
+export default function AboutPage({ onNavigate, onEnterApp, doctor, onLogout }) {
   return (
     <div style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', minHeight: '100vh' }}>
-      <Navbar activePage="about" onNavigate={onNavigate} onEnterApp={onEnterApp} />
+      <Navbar activePage="about" onNavigate={onNavigate} onEnterApp={onEnterApp} doctor={doctor} onLogout={onLogout} />
 
       <div style={{ maxWidth: 1000, margin: '60px auto', padding: '0 24px' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: 16 }}>About MediAgent</h1>

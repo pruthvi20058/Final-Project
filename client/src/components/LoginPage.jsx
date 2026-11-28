@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../services/api';
 
-const API = '/api';
+const API = API_BASE;
 
 // Floating particle component
 function FloatingParticles() {
@@ -69,11 +70,12 @@ export default function LoginPage({ onLogin }) {
         return;
       } else {
         const data = await res.json().catch(() => ({}));
-        if (data.error && data.error.includes('Invalid email')) {
-          setError(data.error);
-          setLoading(false);
-          return;
-        }
+        const msg = typeof data.error === 'string'
+          ? data.error
+          : (data.error?.message || data.message || 'Invalid email or password');
+        setError(msg);
+        setLoading(false);
+        return;
       }
     } catch (err) {
       setError('Unable to connect to the MediAgent server. Please try again later.');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../services/api';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -135,7 +136,7 @@ export default function FloatingVoiceAssistant({ onNavigateToSection }) {
       formData.append('audio', audioBlob, 'recording.webm');
       formData.append('language', selectedLanguage);
 
-      const res = await fetch('/api/health-companion/voice/transcribe', {
+      const res = await fetch(`${API_BASE}/health-companion/voice/transcribe`, {
         method: 'POST',
         body: formData
       });
@@ -184,7 +185,7 @@ export default function FloatingVoiceAssistant({ onNavigateToSection }) {
     setErrorMessage(null);
 
     try {
-      const res = await fetch('/api/health-companion/chat', {
+      const res = await fetch(`${API_BASE}/health-companion/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,7 +245,7 @@ export default function FloatingVoiceAssistant({ onNavigateToSection }) {
   const handleReadAloud = async (textToRead) => {
     try {
       setIsProcessing(true);
-      const res = await fetch('/api/health-companion/voice/synthesize', {
+      const res = await fetch(`${API_BASE}/health-companion/voice/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToRead, language: selectedLanguage })
@@ -263,7 +264,7 @@ export default function FloatingVoiceAssistant({ onNavigateToSection }) {
   const clearChat = async () => {
     if (window.confirm('Clear your conversation history for privacy?')) {
       try {
-        await fetch(`/api/health-companion/chat/sessions/${sessionId}`, { method: 'DELETE' });
+        await fetch(`${API_BASE}/health-companion/chat/sessions/${sessionId}`, { method: 'DELETE' });
       } catch {}
       setMessages([
         {

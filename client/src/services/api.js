@@ -11,7 +11,7 @@ const getApiBase = () => {
   return '/api';
 };
 
-const API_BASE = getApiBase();
+export const API_BASE = getApiBase();
 
 // Clinical fallback data has been removed. The backend is the sole source of truth for
 // predictions, reports, XAI, evidence, and risk assessments. API failures now propagate
