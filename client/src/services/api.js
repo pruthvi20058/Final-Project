@@ -51,6 +51,18 @@ async function request(endpoint, options = {}) {
     }
 
     if (!res.ok) {
+      // Session expired — clear token and notify app to redirect to login
+      if (res.status === 401) {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('mediagent_token');
+            localStorage.removeItem('mediagent_doctor');
+          }
+        } catch {}
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('mediagent:session-expired'));
+        }
+      }
       const errorMsg = data && data.error && data.error.message
         ? data.error.message
         : `API Error ${res.status}`;

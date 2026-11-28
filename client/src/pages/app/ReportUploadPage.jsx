@@ -1,17 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
-import { reportService } from '../../services/api';
+import { reportService, patientService } from '../../services/api';
 
 export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [patients, setPatients] = useState([]);
   const [patientId, setPatientId] = useState('');
   const [disease, setDisease] = useState('');
   const [symptoms, setSymptoms] = useState('');
   const [history, setHistory] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadPatients() {
+      try {
+        const data = await patientService.list();
+        if (mounted && Array.isArray(data)) {
+          setPatients(data);
+        }
+      } catch {
+        // Patient list fetch non-fatal
+      }
+    }
+    loadPatients();
+    return () => { mounted = false; };
+  }, []);
 
   const handleFileDrop = (e) => {
     e.preventDefault();
@@ -31,6 +49,7 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
 
   const handleAnalyze = async () => {
     setErrorMessage('');
+    setUploadProgress(0);
     if (!file) {
       setErrorMessage('Please select a laboratory report file (PDF, JPG, PNG) first.');
       return;
@@ -38,6 +57,8 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
 
     setIsAnalyzing(true);
     try {
+      setUploadProgress(10); // File selected, uploading
+
       const result = await reportService.upload({
         file,
         patientId,
@@ -46,12 +67,15 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
         history
       });
 
+      setUploadProgress(100); // Upload complete
+
       setIsAnalyzing(false);
       if (onStartAnalysis && result.report) {
         onStartAnalysis(result.report);
       }
     } catch (err) {
       setIsAnalyzing(false);
+      setUploadProgress(0);
       setErrorMessage(err.message || 'Unable to connect to the MediAgent backend server. Please check your connection.');
     }
   };
@@ -73,6 +97,24 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
           fontSize: '0.88rem', fontWeight: 600, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10
         }}>
           <span>⚠️ {errorMessage}</span>
+        </div>
+      )}
+
+      {isAnalyzing && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Upload & Processing</span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>{uploadProgress}%</span>
+          </div>
+          <div style={{
+            height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden'
+          }}>
+            <div style={{
+              height: '100%', width: `${uploadProgress}%`,
+              background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
         </div>
       )}
 
@@ -157,9 +199,17 @@ export default function ReportUploadPage({ onNavigate, onStartAnalysis }) {
             <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Patient Identification</label>
             <select className="form-select" value={patientId} onChange={e => setPatientId(e.target.value)}>
               <option value="">Auto-Detect from Lab Document / Unspecified</option>
-              <option value="PAT-8001">PAT-8001 — Sarah Johnson (45y, Female)</option>
-              <option value="PAT-8002">PAT-8002 — Michael Chen (62y, Male)</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.id} — {p.name || 'Unnamed Patient'}
+                </option>
+              ))}
             </select>
+            {patients.length === 0 && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: 6 }}>
+                No patients registered. Create a patient record first.
+              </p>
+            )}
           </div>
 
           <div className="form-group" style={{ marginBottom: 14 }}>

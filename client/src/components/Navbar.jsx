@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-export default function Navbar({ activePage, onNavigate, onEnterApp }) {
-  const [doctor, setDoctor] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
+export default function Navbar({ activePage, onNavigate, onEnterApp, doctor, onLogout }) {
   const links = [
     { id: 'home', label: 'Home' },
     { id: 'about', label: 'About' },
@@ -12,57 +9,6 @@ export default function Navbar({ activePage, onNavigate, onEnterApp }) {
     { id: 'research', label: 'Research' },
     { id: 'contact', label: 'Contact' },
   ];
-
-  useEffect(() => {
-    let mounted = true;
-    async function initAuth() {
-      try {
-        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
-        if (token) {
-          const res = await fetch('/api/auth/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.doctor) {
-              setDoctor(data.doctor);
-            }
-          } else {
-            localStorage.removeItem('mediagent_token');
-            localStorage.removeItem('mediagent_doctor');
-          }
-        }
-      } catch {
-        // Backend unreachable
-      } finally {
-        if (mounted) setAuthChecked(true);
-      }
-    }
-    initAuth();
-    return () => { mounted = false; };
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
-      if (token) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    } catch {
-      // Ignore logout errors
-    }
-    localStorage.removeItem('mediagent_token');
-    localStorage.removeItem('mediagent_doctor');
-    setDoctor(null);
-    onNavigate('home');
-  };
-
-  if (!authChecked) {
-    return null;
-  }
 
   return (
     <header style={{
@@ -130,7 +76,7 @@ export default function Navbar({ activePage, onNavigate, onEnterApp }) {
               <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
                 Dashboard
               </button>
-              <button className="btn btn-secondary" onClick={handleLogout} style={{ color: '#ef4444' }}>
+              <button className="btn btn-secondary" onClick={onLogout} style={{ color: '#ef4444' }}>
                 Logout
               </button>
             </>

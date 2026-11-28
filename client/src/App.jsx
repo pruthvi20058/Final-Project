@@ -41,6 +41,8 @@ import DatasetStudioPage from './pages/admin/DatasetStudioPage';
 import KnowledgeBasePage from './pages/admin/KnowledgeBasePage';
 import SystemStatusPage from './pages/admin/SystemStatusPage';
 
+import { patientService } from './services/api';
+
 const PUBLIC_PAGES = ['home', 'about', 'features', 'how-it-works', 'research', 'contact'];
 const AUTH_PAGES = ['login', 'register', 'forgot-password'];
 
@@ -60,8 +62,9 @@ export default function App() {
   const [activePage, setActivePageState] = useState(getInitialPage);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [selectedPatientId, setSelectedPatientId] = useState('PAT-8001');
-  const [selectedReportId, setSelectedReportId] = useState('REP-9001');
+  const [patients, setPatients] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [selectedReportId, setSelectedReportId] = useState(null);
 
   const setActivePage = (page) => {
     setActivePageState(page);
@@ -87,6 +90,16 @@ export default function App() {
             const data = await res.json();
             if (data.doctor) {
               setDoctor(data.doctor);
+              // Load the authenticated user's patients for dashboard context
+              try {
+                const patientData = await patientService.list();
+                if (mounted && Array.isArray(patientData) && patientData.length > 0) {
+                  setPatients(patientData);
+                  setSelectedPatientId(patientData[0].id);
+                }
+              } catch {
+                // Patient list fetch non-fatal — user can select manually
+              }
             }
           } else {
             // Token invalid/expired — clear it
@@ -109,12 +122,23 @@ export default function App() {
         if (p) setActivePageState(p);
       } catch {}
     };
+    const onSessionExpired = () => {
+      if (mounted) {
+        localStorage.removeItem('mediagent_token');
+        localStorage.removeItem('mediagent_doctor');
+        setDoctor(null);
+        setActivePage('login');
+        showNotification('Session expired. Please sign in again.', 'warning');
+      }
+    };
     window.addEventListener('popstate', onPop);
     window.addEventListener('hashchange', onPop);
+    window.addEventListener('mediagent:session-expired', onSessionExpired);
     return () => {
       mounted = false;
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('hashchange', onPop);
+      window.removeEventListener('mediagent:session-expired', onSessionExpired);
     };
   }, []);
 
@@ -245,10 +269,12 @@ export default function App() {
             animation: 'slideUp 0.3s', boxShadow: 'var(--shadow-lg)',
             background: notification.type === 'success'
               ? 'linear-gradient(135deg, var(--accent-success), #059669)'
-              : 'linear-gradient(135deg, var(--accent-danger), #dc2626)',
+              : notification.type === 'warning'
+                ? 'linear-gradient(135deg, var(--accent-warning), #d97706)'
+                : 'linear-gradient(135deg, var(--accent-danger), #dc2626)',
             color: 'white', display: 'flex', alignItems: 'center', gap: 8
           }}>
-            <span>{notification.type === 'success' ? '✓' : '⚠'}</span>
+            <span>{notification.type === 'success' ? '✓' : notification.type === 'warning' ? '⚠' : '✕'}</span>
             {notification.msg}
           </div>
         )}

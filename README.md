@@ -389,16 +389,40 @@ Final-Project/
 
 | Test Suite | Result |
 |-----------|--------|
-| Master Integration Suite (38 tests) | **38 / 38 PASSED** (100%) |
-| SHAP Explainability Suite (13 tests) | **13 / 13 PASSED** (100%) |
-| Multi-Disease ML Suite (10 tests) | **10 / 10 PASSED** (100%) |
-| RAG Ingestion Suite (11 tests) | **11 / 11 PASSED** (100%) |
-| RAG Retrieval Suite (16 tests) | **16 / 16 PASSED** (100%) |
-| RAG Citations Suite (20 tests) | **20 / 20 PASSED** (100%) |
-| Multilingual NLP Suite (incl. Task 5) | **9 / 9 PASSED** (direct-function tests) |
-| Agentic Orchestration Suite (Task 7) | **50 / 50 PASSED** (100%) |
-| Clinical Risk Stratification Suite (Task 8) | **20 / 20 PASSED** (100%) |
-| Frontend Pages (16 pages) | **16 / 16 CLEAN** |
+| Backend Comprehensive | **53 / 53 PASSED** |
+| Security (E5) | **17 / 17 PASSED** |
+| E4 ML Reliability | **48 / 48 PASSED** |
+| OCR / Lab Extraction | **15 / 15 PASSED** |
+| RAG Evaluation | **19 / 19 PASSED** |
+| Agent Orchestrator (Task 7) | **50 / 50 PASSED** |
+| Performance | **16 / 16 PASSED** |
+| Clinical Risk Engine (Task 8) | **20 / 20 PASSED** |
+| Security — SQL Injection (E5) | **10 / 10 PASSED** |
+| Security — Prompt Injection (E5) | **10 / 10 PASSED** |
+| Security — File Upload (E5) | **12 / 12 PASSED** |
+| Security — RBAC (E5) | **14 / 14 PASSED** |
+| Security — Authentication (E5) | **12 / 12 PASSED** |
+| ML Model Validation | **56 / 77 PASSED**, 21 skipped |
+| NLP / Multilingual | **43 / 43 PASSED** |
+| Frontend Unit Tests | **11 / 11 PASSED** |
+
+---
+
+## 🔒 Security & Privacy (E5)
+
+MediAgent implements comprehensive security controls for a research prototype:
+
+- **Authentication**: bcryptjs password hashing (salt rounds: 12), JWT with JTI, password complexity, account lockout (5 failures/15min)
+- **Authorization**: RBAC with role hierarchy (patient/doctor/administrator), deny-all permission matrix, ownership enforcement on all data routes
+- **Token Revocation**: SQLite-backed JWT blacklist with automatic expiry cleanup
+- **File Upload Security**: Extension allowlist, MIME validation, magic-byte signature checking, 15MB size limit, safe filenames
+- **File Serving**: Uploads NOT publicly served — authorized download endpoint with ownership verification
+- **XSS Prevention**: HTML output sanitization for all rendered content
+- **SSRF Protection**: Private IP range blocking, metadata endpoint protection
+- **Audit Logging**: Structured JSON logs with PII redaction and correlation IDs
+- **No Default Production Account**: Doctor account seeded only in DEMO_MODE/test
+
+> ⚠️ **Clinical Disclaimer**: This system is a research prototype. All ML predictions are based on publicly available datasets and must NOT be used as a substitute for professional medical diagnosis. Independent clinical validation is required. Do not claim HIPAA/GDPR/DPDP compliance without qualified assessment.
 
 ---
 
