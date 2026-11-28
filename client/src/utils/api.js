@@ -1,4 +1,21 @@
-const API = '/api';
+const API = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
+  ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') + '/api'
+  : '/api';
+
+function getAuthToken() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('mediagent_token') : null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(extra = {}) {
+  const token = getAuthToken();
+  return token
+    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }
+    : { 'Content-Type': 'application/json', ...extra };
+}
 
 function getAuthToken() {
   try {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { healthCompanionService } from '../../services/api';
 
 export default function ChatHistoryPage({ onNavigate }) {
   const [sessions, setSessions] = useState([]);
@@ -13,13 +14,10 @@ export default function ChatHistoryPage({ onNavigate }) {
   const fetchSessions = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/health-companion/chat/sessions');
-      const data = await res.json();
-      if (data.success && data.sessions) {
-        setSessions(data.sessions);
-        if (data.sessions.length > 0 && !selectedSessionId) {
-          selectSession(data.sessions[0].sessionId);
-        }
+      const data = await healthCompanionService.getChatSessions();
+      setSessions(data);
+      if (data.length > 0 && !selectedSessionId) {
+        selectSession(data[0].sessionId);
       }
     } catch (err) {
       console.error('Fetch sessions error:', err);
@@ -31,11 +29,8 @@ export default function ChatHistoryPage({ onNavigate }) {
   const selectSession = async (sid) => {
     setSelectedSessionId(sid);
     try {
-      const res = await fetch(`/api/health-companion/chat/sessions/${sid}`);
-      const data = await res.json();
-      if (data.success && data.messages) {
-        setMessages(data.messages);
-      }
+      const data = await healthCompanionService.getChatHistory(sid);
+      setMessages(data);
     } catch (err) {
       console.error('Fetch session messages error:', err);
     }
@@ -45,7 +40,7 @@ export default function ChatHistoryPage({ onNavigate }) {
     e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this chat session?')) return;
     try {
-      await fetch(`/api/health-companion/chat/sessions/${sid}`, { method: 'DELETE' });
+      await healthCompanionService.deleteChatSession(sid);
       setSessions(prev => prev.filter(s => s.sessionId !== sid));
       if (selectedSessionId === sid) {
         setSelectedSessionId(null);

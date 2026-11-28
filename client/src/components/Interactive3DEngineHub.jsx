@@ -33,18 +33,18 @@ const ENGINES = [
   },
   {
     id: 3,
-    title: '3. XGBoost Risk Model',
+    title: '3. Logistic Regression Risk Model',
     icon: '🧬',
     subtitle: 'Explainable AI Classifier',
     accent: '#ef4444',
-    desc: 'Calibrated machine learning algorithms predict differential diagnosis probabilities across cardiovascular, renal, metabolic, and liver pathologies.',
-    badge: 'XGBoost ML Pipeline',
+    desc: 'Machine learning algorithms predict differential diagnosis probabilities across metabolic and cardiovascular pathologies.',
+    badge: 'Logistic Regression ML Pipeline',
     stats: [
-      { label: 'Top Diagnosis', value: 'Type 2 Diabetes (74.2%)' },
-      { label: 'Secondary Risk', value: 'Metabolic Syndrome (58.1%)' },
-      { label: 'Model ROC-AUC', value: '0.94' }
+      { label: 'Top Diagnosis', value: 'Type 2 Diabetes (verified)' },
+      { label: 'Secondary Risk', value: 'Model-validated output' },
+      { label: 'Model ROC-AUC', value: '0.823 (Pima)' }
     ],
-    sampleOutput: 'Type 2 Diabetes Risk: 74.2% [High Risk]\nDiabetic Nephropathy Risk: 38.5% [Moderate]\nCardiovascular Event Risk: 42.0% [Elevated]'
+    sampleOutput: 'Type 2 Diabetes Risk: [Probability]\nSHAP feature weights provided\nClinical disclaimer: screening only, not diagnostic'
   },
   {
     id: 4,

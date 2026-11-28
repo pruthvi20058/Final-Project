@@ -1,0 +1,210 @@
+[
+  {
+    "id": "who-2026-malaria",
+    "title": "Malaria — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-20",
+    "url": "https://www.who.int/news-room/fact-sheets/detail/malaria",
+    "documentType": "Fact Sheet",
+    "topic": "malaria_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "malaria",
+    "chunks": [
+      {
+        "chunkId": "who-2026-malaria-chunk-0",
+        "chunkIndex": 0,
+        "text": "Malaria is a life-threatening disease caused by Plasmodium parasites that are spread to people through the bites of infected female Anopheles mosquitoes. It is preventable and curable.",
+        "startChar": 0,
+        "endChar": 191,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "who-2026-malaria-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms of malaria include fever and flu-like illness, including shaking chills, headache, muscle aches, and tiredness. Nausea, vomiting, and diarrhea may also occur. Symptoms usually appear 10–15 days after the infective mosquito bite.",
+        "startChar": 191,
+        "endChar": 430,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "who-2026-malaria-chunk-2",
+        "chunkIndex": 2,
+        "text": "Severe malaria can cause seizures, confusion, kidney failure, acute respiratory distress syndrome, coma, and death. Children under 5 years, pregnant women, and people with HIV/AIDS are at higher risk of severe disease.",
+        "startChar": 430,
+        "endChar": 655,
+        "page": null,
+        "section": "Severe malaria"
+      },
+      {
+        "chunkId": "who-2026-malaria-chunk-3",
+        "chunkIndex": 3,
+        "text": "Early diagnosis and treatment reduce disease and prevent deaths. The best available treatment, particularly for Plasmodium falciparum malaria, is artemisinin-based combination therapy (ACT). Confirmation by rapid diagnostic test or microscopy is recommended before treatment where possible.",
+        "startChar": 655,
+        "endChar": 898,
+        "page": null,
+        "section": "Diagnosis and treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "who-2026-malaria",
+      "title": "Malaria — WHO Fact Sheet",
+      "organization": "World Health Organization",
+      "disease": "malaria",
+      "topic": "malaria_overview",
+      "documentType": "Fact Sheet",
+      "publicationDate": "2026-01-20",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/malaria",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "cdc-2026-malaria",
+    "title": "Malaria — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-04-01",
+    "url": "https://www.cdc.gov/malaria/",
+    "documentType": "Government Public Health Page",
+    "topic": "malaria_diagnosis_treatment",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "malaria",
+    "chunks": [
+      {
+        "chunkId": "cdc-2026-malaria-chunk-0",
+        "chunkIndex": 0,
+        "text": "Malaria is a serious and sometimes fatal disease caused by a parasite that commonly infects a certain type of mosquito which feeds on humans. People who get malaria are typically very sick with high fevers, shaking chills, and flu-like illness.",
+        "startChar": 0,
+        "endChar": 211,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "cdc-2026-malaria-chunk-1",
+        "chunkIndex": 1,
+        "text": "Diagnosis of malaria is made by examining blood smears under a microscope or by using rapid diagnostic tests (RDTs). Species identification (P. falciparum, P. vivax, P. ovale, P. malariae, P. knowlesi) guides treatment.",
+        "startChar": 211,
+        "endChar": 423,
+        "page": null,
+        "section": "Diagnosis"
+      },
+      {
+        "chunkId": "cdc-2026-malaria-chunk-2",
+        "chunkIndex": 2,
+        "text": "Antimalarial medications are used to treat malaria. The choice of drug and length of treatment depend on the species of malaria parasite, severity of symptoms, and whether the patient is pregnant.",
+        "startChar": 423,
+        "endChar": 617,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "cdc-2026-malaria",
+      "title": "Malaria — CDC Disease Information",
+      "organization": "Centers for Disease Control and Prevention",
+      "disease": "malaria",
+      "topic": "malaria_diagnosis_treatment",
+      "documentType": "Government Public Health Page",
+      "publicationDate": "2026-04-01",
+      "url": "https://www.cdc.gov/malaria/",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "nhs-2026-malaria",
+    "title": "Malaria — NHS",
+    "organization": "National Health Service (UK)",
+    "publicationDate": "2026-02-15",
+    "url": "https://www.nhs.uk/conditions/malaria/",
+    "documentType": "Clinical Topic Page",
+    "topic": "malaria_symptoms_treatment",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "malaria",
+    "chunks": [
+      {
+        "chunkId": "nhs-2026-malaria-chunk-0",
+        "chunkIndex": 0,
+        "text": "Malaria is a serious tropical disease spread by mosquitoes. If it isn't diagnosed and treated promptly, it can be fatal.",
+        "startChar": 0,
+        "endChar": 127,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "nhs-2026-malaria-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms of malaria can develop as quickly as 7 days after you're bitten by an infected mosquito, or as long as a year after exposure. Typical symptoms include a high temperature, feeling hot and shivery, headaches, vomiting, muscle pains, and diarrhoea.",
+        "startChar": 127,
+        "endChar": 364,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "nhs-2026-malaria-chunk-2",
+        "chunkIndex": 2,
+        "text": "Malaria is treated with antimalarial medicine. Someone with malaria will usually need to be admitted to hospital so their symptoms can be monitored and treated.",
+        "startChar": 364,
+        "endChar": 536,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "nhs-2026-malaria",
+      "title": "Malaria — NHS",
+      "organization": "National Health Service (UK)",
+      "disease": "malaria",
+      "topic": "malaria_symptoms_treatment",
+      "documentType": "Clinical Topic Page",
+      "publicationDate": "2026-02-15",
+      "url": "https://www.nhs.uk/conditions/malaria/",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "ncdc-india-2026-malaria",
+    "title": "National Framework for Malaria Elimination in India — NCDC",
+    "organization": "National Centre for Disease Control, India",
+    "publicationDate": "2025-09-10",
+    "url": "https://ncdc.gov.in/",
+    "documentType": "National Public Health Framework",
+    "topic": "malaria_india_elimination",
+    "version": "2025.2",
+    "retrievedAt": "2026-11-25",
+    "disease": "malaria",
+    "chunks": [
+      {
+        "chunkId": "ncdc-india-2026-malaria-chunk-0",
+        "chunkIndex": 0,
+        "text": "India's National Framework for Malaria Elimination aims to eliminate malaria from the country by 2030. Early diagnosis through microscopy or rapid diagnostic tests and complete treatment are key components of the national strategy.",
+        "startChar": 0,
+        "endChar": 211,
+        "page": null,
+        "section": "National elimination goal"
+      },
+      {
+        "chunkId": "ncdc-india-2026-malaria-chunk-1",
+        "chunkIndex": 1,
+        "text": "Vector control through indoor residual spraying and long-lasting insecticidal nets, combined with community awareness, form the core of malaria prevention in endemic districts.",
+        "startChar": 211,
+        "endChar": 398,
+        "page": null,
+        "section": "Prevention"
+      }
+    ],
+    "metadata": {
+      "sourceId": "ncdc-india-2026-malaria",
+      "title": "National Framework for Malaria Elimination in India — NCDC",
+      "organization": "National Centre for Disease Control, India",
+      "disease": "malaria",
+      "topic": "malaria_india_elimination",
+      "documentType": "National Public Health Framework",
+      "publicationDate": "2025-09-10",
+      "url": "https://ncdc.gov.in/",
+      "version": "2025.2"
+    }
+  }
+]

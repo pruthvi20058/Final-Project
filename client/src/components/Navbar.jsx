@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Navbar({ activePage, onNavigate, onEnterApp }) {
-  const [doctor, setDoctor] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
+export default function Navbar({ activePage, onNavigate, onEnterApp, doctor, onLogout }) {
   const links = [
     { id: 'home', label: 'Home' },
     { id: 'about', label: 'About' },
@@ -130,7 +127,7 @@ export default function Navbar({ activePage, onNavigate, onEnterApp }) {
               <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
                 Dashboard
               </button>
-              <button className="btn btn-secondary" onClick={handleLogout} style={{ color: '#ef4444' }}>
+              <button className="btn btn-secondary" onClick={onLogout} style={{ color: '#ef4444' }}>
                 Logout
               </button>
             </>

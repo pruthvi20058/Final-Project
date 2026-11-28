@@ -1,0 +1,266 @@
+{
+  "model_name": "MediAgent Chikungunya Classifier (Logistic Regression) \u2014 E4 Deduplicated",
+  "model_version": "v1.0.0-chikungunya-sinan-e4",
+  "algorithm": "Logistic Regression",
+  "feature_count": 12,
+  "features": [
+    "fever",
+    "myalgia",
+    "headache",
+    "rash",
+    "vomiting",
+    "nausea",
+    "back_pain",
+    "conjunctivitis",
+    "arthritis",
+    "arthralgia",
+    "petechiae",
+    "leukopenia"
+  ],
+  "target_column": "target",
+  "classes": [
+    "0",
+    "1"
+  ],
+  "class_labels": {
+    "0": "Discarded / Febrile Negative Control",
+    "1": "Chikungunya Confirmed"
+  },
+  "sample_size": 2424,
+  "original_sample_size": 10000,
+  "duplicate_rows_removed": 7576,
+  "train_samples": 1939,
+  "test_samples": 485,
+  "selected_model_test_metrics": {
+    "is_multiclass": false,
+    "classes": [
+      "0",
+      "1"
+    ],
+    "class_labels": {
+      "0": "Discarded / Febrile Negative Control",
+      "1": "Chikungunya Confirmed"
+    },
+    "accuracy": 0.4763,
+    "precision": 0.4708,
+    "recall_sensitivity": 0.4708,
+    "f1_score": 0.4708,
+    "specificity": 0.4816,
+    "confusion_matrix": {
+      "tn": 118,
+      "fp": 127,
+      "fn": 127,
+      "tp": 113
+    },
+    "roc_auc": 0.4811,
+    "pr_auc": 0.4964,
+    "brier_score": 0.2526
+  },
+  "selected_model_cv_metrics": {
+    "cv_accuracy_mean": 0.5178,
+    "cv_accuracy_std": 0.0249,
+    "cv_f1_mean": 0.4945,
+    "cv_f1_std": 0.0299,
+    "cv_roc_auc_mean": 0.5138,
+    "cv_roc_auc_std": 0.0201,
+    "cv_folds": 5
+  },
+  "algorithm_comparison": {
+    "Logistic Regression": {
+      "is_multiclass": false,
+      "classes": [
+        "0",
+        "1"
+      ],
+      "class_labels": {
+        "0": "Discarded / Febrile Negative Control",
+        "1": "Chikungunya Confirmed"
+      },
+      "accuracy": 0.4763,
+      "precision": 0.4708,
+      "recall_sensitivity": 0.4708,
+      "f1_score": 0.4708,
+      "specificity": 0.4816,
+      "confusion_matrix": {
+        "tn": 118,
+        "fp": 127,
+        "fn": 127,
+        "tp": 113
+      },
+      "roc_auc": 0.4811,
+      "pr_auc": 0.4964,
+      "brier_score": 0.2526
+    },
+    "Random Forest": {
+      "is_multiclass": false,
+      "classes": [
+        "0",
+        "1"
+      ],
+      "class_labels": {
+        "0": "Discarded / Febrile Negative Control",
+        "1": "Chikungunya Confirmed"
+      },
+      "accuracy": 0.3381,
+      "precision": 0.3373,
+      "recall_sensitivity": 0.35,
+      "f1_score": 0.3436,
+      "specificity": 0.3265,
+      "confusion_matrix": {
+        "tn": 80,
+        "fp": 165,
+        "fn": 156,
+        "tp": 84
+      },
+      "roc_auc": 0.3015,
+      "pr_auc": 0.3889,
+      "brier_score": 0.283
+    },
+    "Gradient Boosting": {
+      "is_multiclass": false,
+      "classes": [
+        "0",
+        "1"
+      ],
+      "class_labels": {
+        "0": "Discarded / Febrile Negative Control",
+        "1": "Chikungunya Confirmed"
+      },
+      "accuracy": 0.3938,
+      "precision": 0.3902,
+      "recall_sensitivity": 0.4,
+      "f1_score": 0.3951,
+      "specificity": 0.3878,
+      "confusion_matrix": {
+        "tn": 95,
+        "fp": 150,
+        "fn": 144,
+        "tp": 96
+      },
+      "roc_auc": 0.3903,
+      "pr_auc": 0.4378,
+      "brier_score": 0.2785
+    },
+    "SVM (RBF)": {
+      "is_multiclass": false,
+      "classes": [
+        "0",
+        "1"
+      ],
+      "class_labels": {
+        "0": "Discarded / Febrile Negative Control",
+        "1": "Chikungunya Confirmed"
+      },
+      "accuracy": 0.3979,
+      "precision": 0.4078,
+      "recall_sensitivity": 0.4792,
+      "f1_score": 0.4406,
+      "specificity": 0.3184,
+      "confusion_matrix": {
+        "tn": 78,
+        "fp": 167,
+        "fn": 125,
+        "tp": 115
+      },
+      "roc_auc": 0.63,
+      "pr_auc": 0.5996,
+      "brier_score": 0.2416
+    }
+  },
+  "dataset_quality": {
+    "shape": {
+      "rows": 2424,
+      "cols": 13
+    },
+    "columns": [
+      "fever",
+      "myalgia",
+      "headache",
+      "rash",
+      "vomiting",
+      "nausea",
+      "back_pain",
+      "conjunctivitis",
+      "arthritis",
+      "arthralgia",
+      "petechiae",
+      "leukopenia",
+      "target"
+    ],
+    "feature_columns": [
+      "fever",
+      "myalgia",
+      "headache",
+      "rash",
+      "vomiting",
+      "nausea",
+      "back_pain",
+      "conjunctivitis",
+      "arthritis",
+      "arthralgia",
+      "petechiae",
+      "leukopenia"
+    ],
+    "target_column": "target",
+    "duplicate_rows_all": 0,
+    "duplicate_rows_excluding_target": 743,
+    "missing_values": {},
+    "missing_total": 0,
+    "class_distribution": {
+      "0": 1226,
+      "1": 1198
+    },
+    "conflicting_duplicate_labels": 743
+  },
+  "dataset_quality_original": {
+    "shape": {
+      "rows": 10000,
+      "cols": 13
+    },
+    "columns": [
+      "fever",
+      "myalgia",
+      "headache",
+      "rash",
+      "vomiting",
+      "nausea",
+      "back_pain",
+      "conjunctivitis",
+      "arthritis",
+      "arthralgia",
+      "petechiae",
+      "leukopenia",
+      "target"
+    ],
+    "feature_columns": [
+      "fever",
+      "myalgia",
+      "headache",
+      "rash",
+      "vomiting",
+      "nausea",
+      "back_pain",
+      "conjunctivitis",
+      "arthritis",
+      "arthralgia",
+      "petechiae",
+      "leukopenia"
+    ],
+    "target_column": "target",
+    "duplicate_rows_all": 7576,
+    "duplicate_rows_excluding_target": 8319,
+    "missing_values": {},
+    "missing_total": 0,
+    "class_distribution": {
+      "0": 5000,
+      "1": 5000
+    },
+    "conflicting_duplicate_labels": 743
+  },
+  "audit_flags": [
+    "NEAR_CHANCE_PERFORMANCE (ROC-AUC=0.4811) \u2014 model has little discriminative ability on chikungunya",
+    "DEDUPLICATED: 7576 duplicate rows removed before split (10000 -> 2424 unique records)",
+    "CONFLICTING_LABELS: 743 unique feature-rows have conflicting target labels \u2014 data is noisy",
+    "NEAR_CHANCE_PERFORMANCE (ROC-AUC=0.4811) \u2014 symptom features do not reliably distinguish chikungunya from other febrile illnesses"
+  ]
+}

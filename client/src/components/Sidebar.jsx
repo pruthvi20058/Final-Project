@@ -1,41 +1,52 @@
 import React from 'react';
 
 export default function Sidebar({ active, onNavigate, collapsed, onToggle, doctor, onLogout, onGoPublic }) {
-  const mainNav = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { id: 'multilingual', icon: '🎙️', label: 'Voice & Multilingual AI', badge: '10 LANG' },
-    { id: 'patients', icon: '🏥', label: 'Patients' },
-    { id: 'reports', icon: '📋', label: 'Reports List' },
-    { id: 'upload', icon: '📤', label: 'Upload Report', badge: 'NEW' },
-    { id: 'analysis', icon: '⚡', label: 'Analysis Progress' },
-    { id: 'predictions', icon: '🧬', label: 'Disease Predictions' },
-    { id: 'xai', icon: '🔍', label: 'Explainability (XAI)' },
-    { id: 'evidence', icon: '📚', label: 'Medical Evidence' },
-    { id: 'risk-uncertainty', icon: '🛡️', label: 'Risk & Uncertainty' },
-    { id: 'trends', icon: '📈', label: 'Trends & Comparison' },
-    { id: 'clinical-report', icon: '📄', label: 'Clinical Report' },
-    { id: 'review', icon: '🩺', label: 'Doctor Review', badge: 'HIPAA' },
-    { id: 'history', icon: '📜', label: 'Patient Timeline' }
+  const userRole = doctor?.role || 'doctor';
+
+  // Role-based navigation: only show items the user is authorized to access
+  const allMainNav = [
+    { id: 'dashboard', icon: '📊', label: 'Dashboard', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'multilingual', icon: '🎙️', label: 'Voice & Multilingual AI', badge: '10 LANG', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'agent-workflow', icon: '🤖', label: 'Agentic Workflow', badge: 'TASK 7', roles: ['doctor', 'administrator'] },
+    { id: 'patients', icon: '🏥', label: 'Patients', roles: ['doctor', 'administrator'] },
+    { id: 'reports', icon: '📋', label: 'Reports List', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'upload', icon: '📤', label: 'Upload Report', badge: 'NEW', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'analysis', icon: '⚡', label: 'Analysis Progress', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'predictions', icon: '🧬', label: 'Disease Predictions', roles: ['doctor', 'administrator'] },
+    { id: 'xai', icon: '🔍', label: 'Explainability (XAI)', roles: ['doctor', 'administrator'] },
+    { id: 'evidence', icon: '📚', label: 'Medical Evidence', roles: ['doctor', 'administrator'] },
+    { id: 'risk-uncertainty', icon: '🛡️', label: 'Risk & Uncertainty', roles: ['doctor', 'administrator'] },
+    { id: 'trends', icon: '📈', label: 'Trends & Comparison', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'clinical-report', icon: '📄', label: 'Clinical Report', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'review', icon: '🩺', label: 'Doctor Review', badge: 'HIPAA', roles: ['doctor', 'administrator'] },
+    { id: 'history', icon: '📜', label: 'Patient Timeline', roles: ['patient', 'doctor', 'administrator'] }
   ];
 
-  const companionNav = [
-    { id: 'companion', icon: '🩺', label: 'Health Companion', badge: 'AI AGENT' },
-    { id: 'medicines', icon: '💊', label: 'Medicine Guide', badge: 'OCR' },
-    { id: 'diseases', icon: '🦠', label: 'Disease Guide', badge: '6 TOPICS' },
-    { id: 'companion-history', icon: '📜', label: 'Chat History' }
+  const allCompanionNav = [
+    { id: 'companion', icon: '🩺', label: 'Health Companion', badge: 'AI AGENT', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'medicines', icon: '💊', label: 'Medicine Guide', badge: 'OCR', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'diseases', icon: '🦠', label: 'Disease Guide', badge: '6 TOPICS', roles: ['patient', 'doctor', 'administrator'] },
+    { id: 'companion-history', icon: '📜', label: 'Chat History', roles: ['patient', 'doctor', 'administrator'] }
   ];
 
-  const researchNav = [
-    { id: 'dataset-studio', icon: '🧪', label: 'Dataset & Training Studio', badge: '5 DISEASES' },
-    { id: 'evaluation', icon: '🏆', label: 'Evaluation Benchmarks' },
-    { id: 'models', icon: '⚙️', label: 'Model Registry' },
-    { id: 'knowledge', icon: '🌐', label: 'Knowledge Base' },
-    { id: 'system-status', icon: '🟢', label: 'System Status' }
+  const allResearchNav = [
+    { id: 'dataset-studio', icon: '🧪', label: 'Dataset & Training Studio', badge: '5 DISEASES', roles: ['administrator'] },
+    { id: 'evaluation', icon: '🏆', label: 'Evaluation Benchmarks', roles: ['doctor', 'administrator'] },
+    { id: 'models', icon: '⚙️', label: 'Model Registry', roles: ['administrator'] },
+    { id: 'knowledge', icon: '🌐', label: 'Knowledge Base', roles: ['administrator'] },
+    { id: 'system-status', icon: '🟢', label: 'System Status', roles: ['administrator'] }
   ];
 
-  const systemNav = [
-    { id: 'settings', icon: '🔧', label: 'Settings' }
+  const allSystemNav = [
+    { id: 'settings', icon: '🔧', label: 'Settings', roles: ['patient', 'doctor', 'administrator'] }
   ];
+
+  const filterByRole = (items) => items.filter(item => item.roles.includes(userRole));
+
+  const mainNav = filterByRole(allMainNav);
+  const companionNav = filterByRole(allCompanionNav);
+  const researchNav = filterByRole(allResearchNav);
+  const systemNav = filterByRole(allSystemNav);
 
   const renderNavItem = (item) => (
     <div
@@ -107,9 +118,9 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggle, docto
         <div className="status">
           <span className="status-dot"></span>
           <span className="sidebar-footer-text">
-            <span>Model v1.0.4 Calibrated</span>
+            <span>MediAgent Research Prototype</span>
             <div style={{ marginTop: 2, fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>
-              11-Stage Agentic Pipeline
+              Not for clinical use
             </div>
           </span>
         </div>

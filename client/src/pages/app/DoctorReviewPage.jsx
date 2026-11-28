@@ -69,8 +69,8 @@ export default function DoctorReviewPage({ reportId = 'REP-9001', doctor, notify
 
     await reviewService.submitReview({
       reportId: report.id,
-      doctorId: doctor?.id || 'DOC-001',
-      doctorName: doctor?.name || 'Dr. Attending Physician',
+      doctorId: doctor?.id || null,
+      doctorName: doctor?.name || 'Unknown',
       decision,
       comments,
       modifiedPrediction: decision === 'modified' ? modifiedPrediction : null,
@@ -140,7 +140,7 @@ export default function DoctorReviewPage({ reportId = 'REP-9001', doctor, notify
                 Decision: {decision?.toUpperCase()}
               </p>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: 8 }}>
-                Logged by {doctor?.name || 'Dr. Attending Physician'} on {new Date().toLocaleString()}
+                Logged by {doctor?.name || 'Unknown'} on {new Date().toLocaleString()}
               </p>
               <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setReviewSubmitted(false)}>
                 Edit Decision

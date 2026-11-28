@@ -1,101 +1,156 @@
 {
-  "model_name": "MediAgent Dengue Diagnostic Classifier (Random Forest)",
-  "model_version": "v1.0.0-dengue-clinical",
+  "model_name": "MediAgent Dengue Classifier (Random Forest) \u2014 E4 Leakage-Corrected",
+  "model_version": "v1.0.0-dengue-clinical-e4",
   "algorithm": "Random Forest",
-  "dataset_provenance": {
-    "name": "Dengue Clinical Hematology and Symptom Dataset",
-    "source": "Kaggle Clinical Dengue Detection / wahiduzzaman1511-ai",
-    "records_total": 1000,
-    "train_samples": 800,
-    "test_samples": 200,
-    "synthetic_data_used": false
+  "feature_count": 13,
+  "features": [
+    "Gender",
+    "Age",
+    "NS1",
+    "IgM",
+    "Fever_Duration",
+    "Body_Temperature",
+    "Platelet_Count",
+    "WBC_Count",
+    "Joint_Pain",
+    "Headache",
+    "Retro_Orbital_Pain",
+    "Myalgia",
+    "Rash"
+  ],
+  "excluded_features": [
+    "IgG"
+  ],
+  "target_column": "Outcome",
+  "classes": [
+    "0",
+    "1"
+  ],
+  "class_labels": {
+    "0": "Dengue Negative / Other Febrile Illness",
+    "1": "Dengue Confirmed"
   },
-  "leakage_audit": {
-    "duplicate_rows_detected": 0,
-    "scaler_fitted_on_train_only": true,
-    "stratified_split": true,
-    "random_seed": 42
-  },
+  "sample_size": 1000,
+  "train_samples": 800,
+  "test_samples": 200,
   "selected_model_test_metrics": {
+    "is_multiclass": false,
+    "classes": [
+      "0",
+      "1"
+    ],
+    "class_labels": {
+      "0": "Dengue Negative / Other Febrile Illness",
+      "1": "Dengue Confirmed"
+    },
     "accuracy": 1.0,
     "precision": 1.0,
     "recall_sensitivity": 1.0,
-    "specificity": 1.0,
     "f1_score": 1.0,
-    "roc_auc": 1.0,
-    "brier_score": 0.0,
+    "specificity": 1.0,
     "confusion_matrix": {
       "tn": 93,
       "fp": 0,
       "fn": 0,
       "tp": 107
     },
-    "cv_metrics": {
-      "cv_accuracy_mean": 1.0,
-      "cv_f1_mean": 1.0,
-      "cv_roc_auc_mean": 1.0
-    }
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "brier_score": 0.0001
   },
-  "all_model_comparisons": {
-    "Random Forest": {
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall_sensitivity": 1.0,
-      "specificity": 1.0,
-      "f1_score": 1.0,
-      "roc_auc": 1.0,
-      "brier_score": 0.0,
-      "confusion_matrix": {
-        "tn": 93,
-        "fp": 0,
-        "fn": 0,
-        "tp": 107
-      },
-      "cv_metrics": {
-        "cv_accuracy_mean": 1.0,
-        "cv_f1_mean": 1.0,
-        "cv_roc_auc_mean": 1.0
-      }
+  "selected_model_cv_metrics": {
+    "cv_accuracy_mean": 1.0,
+    "cv_accuracy_std": 0.0,
+    "cv_f1_mean": 1.0,
+    "cv_f1_std": 0.0,
+    "cv_roc_auc_mean": 1.0,
+    "cv_roc_auc_std": 0.0,
+    "cv_folds": 5
+  },
+  "dataset_quality": {
+    "shape": {
+      "rows": 1000,
+      "cols": 15
     },
-    "HistGradientBoosting": {
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall_sensitivity": 1.0,
-      "specificity": 1.0,
-      "f1_score": 1.0,
-      "roc_auc": 1.0,
-      "brier_score": 0.0,
-      "confusion_matrix": {
-        "tn": 93,
-        "fp": 0,
-        "fn": 0,
-        "tp": 107
-      },
-      "cv_metrics": {
-        "cv_accuracy_mean": 1.0,
-        "cv_f1_mean": 1.0,
-        "cv_roc_auc_mean": 1.0
-      }
+    "columns": [
+      "Gender",
+      "Age",
+      "NS1",
+      "IgG",
+      "IgM",
+      "Fever_Duration",
+      "Body_Temperature",
+      "Platelet_Count",
+      "WBC_Count",
+      "Joint_Pain",
+      "Headache",
+      "Retro_Orbital_Pain",
+      "Myalgia",
+      "Rash",
+      "Outcome"
+    ],
+    "feature_columns": [
+      "Gender",
+      "Age",
+      "NS1",
+      "IgG",
+      "IgM",
+      "Fever_Duration",
+      "Body_Temperature",
+      "Platelet_Count",
+      "WBC_Count",
+      "Joint_Pain",
+      "Headache",
+      "Retro_Orbital_Pain",
+      "Myalgia",
+      "Rash"
+    ],
+    "target_column": "Outcome",
+    "duplicate_rows_all": 0,
+    "duplicate_rows_excluding_target": 0,
+    "missing_values": {
+      "Joint_Pain": 491
     },
-    "Logistic Regression": {
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall_sensitivity": 1.0,
-      "specificity": 1.0,
-      "f1_score": 1.0,
-      "roc_auc": 1.0,
-      "brier_score": 0.0,
-      "confusion_matrix": {
-        "tn": 93,
-        "fp": 0,
-        "fn": 0,
-        "tp": 107
-      },
-      "cv_metrics": {
-        "cv_accuracy_mean": 1.0,
-        "cv_f1_mean": 1.0,
-        "cv_roc_auc_mean": 1.0
-      }
+    "missing_total": 491,
+    "class_distribution": {
+      "1": 533,
+      "0": 467
+    },
+    "conflicting_duplicate_labels": 0
+  },
+  "leakage_evidence": [
+    {
+      "feature": "NS1",
+      "feature_value": "1",
+      "target_class": "1",
+      "rows_affected": 519,
+      "description": "Feature 'NS1'=1 always maps to target=1 (519 rows) \u2014 possible target leakage"
+    },
+    {
+      "feature": "IgG",
+      "feature_value": "0",
+      "target_class": "0",
+      "rows_affected": 467,
+      "description": "Feature 'IgG'=0 always maps to target=0 (467 rows) \u2014 possible target leakage"
+    },
+    {
+      "feature": "Fever_Duration",
+      "feature_value": "0",
+      "target_class": "0",
+      "rows_affected": 234,
+      "description": "Feature 'Fever_Duration'=0 always maps to target=0 (234 rows) \u2014 possible target leakage"
+    },
+    {
+      "feature": "Body_Temperature",
+      "feature_value": "36.3",
+      "target_class": "0",
+      "rows_affected": 10,
+      "description": "Feature 'Body_Temperature'=36.3 always maps to target=0 (10 rows) \u2014 possible target leakage"
     }
-  }
+  ],
+  "audit_flags": [
+    "PERFECT_METRICS_SUSPICIOUS (accuracy, precision, recall, f1, roc_auc=1.0) \u2014 possible target leakage or label contamination in dengue",
+    "TARGET_LEAKAGE_REMOVED: IgG excluded (IgG = past-infection marker, temporal leakage \u2014 see DATASET_AUDIT.md)",
+    "LEAKAGE_RISK_RETAINED: NS1, Fever_Duration, Body_Temperature \u2014 legitimate clinical markers but strong target association; metrics may be optimistic"
+  ]
 }

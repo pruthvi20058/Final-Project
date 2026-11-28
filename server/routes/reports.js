@@ -19,6 +19,12 @@ const { computeModelReadiness, logReadinessDiagnostics } = require('../services/
 const { computeDiseaseModelReadiness } = require('../services/diseaseFeatureMapper');
 const { retrieveMedicalEvidence } = require('../services/ragService');
 const diagnosticAgent = require('../agents/diagnosticAgent');
+const {
+  isAllowedExtension,
+  isAllowedMimeType,
+  validateFileSignature,
+  isValidFileSize,
+} = require('../utils/fileSecurity');
 
 // Multer Storage Config for Unique Collision-Safe Filenames
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -83,12 +89,44 @@ router.post('/upload', singleFileUpload, async (req, res) => {
 
     const file = req.file;
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
 
-    if (!allowedExts.includes(ext)) {
+    if (!isAllowedExtension(file.originalname)) {
       return res.status(400).json({
         success: false,
         error: { code: 'UNSUPPORTED_FILE_TYPE', message: 'Unsupported file type. Please upload PDF, JPG, JPEG, or PNG.' }
+      });
+    }
+
+    if (!isAllowedMimeType(file.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'UNSUPPORTED_MIME_TYPE', message: 'File MIME type does not match allowed document types.' }
+      });
+    }
+
+    if (!isValidFileSize(file.size)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds the 15 MB limit or is invalid.' }
+      });
+    }
+
+    // Validate file signature (magic bytes) to prevent polyglot/mislabeled uploads
+    try {
+      const fileBuffer = fs.readFileSync(file.path);
+      if (!validateFileSignature(fileBuffer.slice(0, 16), ext)) {
+        // Remove the unsafe file from disk
+        try { fs.unlinkSync(file.path); } catch {}
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_FILE_SIGNATURE', message: 'File content does not match its declared type. Possible masqueraded file.' }
+        });
+      }
+    } catch (sigErr) {
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(400).json({
+        success: false,
+        error: { code: 'FILE_SCAN_ERROR', message: 'Unable to validate file contents.' }
       });
     }
 
@@ -715,7 +753,10 @@ router.put('/:id/lab-results', async (req, res) => {
         status: item.status || 'NORMAL',
         quality: item.quality || 'VALID',
         validationFlags: item.validationFlags || [],
-        confidence: item.confidence !== undefined ? item.confidence : 95.0,
+        // E3: User-entered / verified values must NOT receive a fabricated
+        // 95% confidence. Preserve OCR-derived confidence when present;
+        // otherwise record confidence as null (unavailable) with provenance.
+        confidence: item.confidence !== undefined && item.confidence !== null ? item.confidence : null,
         sourceLocation: item.sourceLocation || item.source_location || null,
         validatedByUser: true,
         validatedAt: now,
@@ -1102,6 +1143,81 @@ router.get('/:id/risk', (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'DATABASE_ERROR', message: err.message } });
+  }
+});
+
+// 11. GET /api/reports/:id/file — Authorized file download (ownership enforced)
+// Uploaded files are NOT served via public static middleware. This endpoint
+// verifies ownership and streams the stored file with appropriate headers.
+router.get('/:id/file', (req, res) => {
+  try {
+    const report = getReportRecord(req.params.id);
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'REPORT_NOT_FOUND', message: 'Report ID not found.' },
+      });
+    }
+
+    if (!reportBelongsToUser(report, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this file' },
+      });
+    }
+
+    const fs = require('fs');
+    const path = require('path');
+    const {
+      isSafePathComponent,
+    } = require('../utils/fileSecurity');
+
+    const uploadDir = path.join(__dirname, '..', 'uploads');
+    const storedFilename = report.storedFilename;
+
+    if (!storedFilename || !isSafePathComponent(storedFilename)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_FILE', message: 'Invalid stored filename' },
+      });
+    }
+
+    const filePath = path.join(uploadDir, storedFilename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'FILE_NOT_FOUND', message: 'Stored file not found' },
+      });
+    }
+
+    // Security headers: prevent MIME sniffing, enforce download, sandbox
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="' + encodeURIComponent(report.original_filename || storedFilename) + '"'
+    );
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+
+    const ext = path.extname(storedFilename).toLowerCase();
+    const contentType = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+    }[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', () => {
+      res.status(500).json({
+        success: false,
+        error: { code: 'FILE_READ_ERROR', message: 'Failed to read stored file' },
+      });
+    });
+    stream.pipe(res);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
 });
 

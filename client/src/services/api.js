@@ -1,15 +1,13 @@
 // MediAgent Central API Service connected to Express Backend & Trained ML Pipeline
 
 // In production, VITE_API_URL is set to the Render backend URL.
-// Auto-detects production environments (Vercel, GitHub Pages, etc.) and defaults to live Render backend.
+// No hardcoded production URLs — only VITE_API_URL or relative /api for dev proxy.
 const getApiBase = () => {
   if (import.meta.env.VITE_API_URL) {
     const raw = import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
     return raw.endsWith('/api') ? raw : `${raw}/api`;
   }
-  if (typeof window !== 'undefined' && window.location && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return 'https://mediagent-backend-nht2.onrender.com/api';
-  }
+  // Development: use relative /api (Vite dev server proxies to localhost:3001)
   return '/api';
 };
 
@@ -53,6 +51,18 @@ async function request(endpoint, options = {}) {
     }
 
     if (!res.ok) {
+      // Session expired — clear token and notify app to redirect to login
+      if (res.status === 401) {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('mediagent_token');
+            localStorage.removeItem('mediagent_doctor');
+          }
+        } catch {}
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('mediagent:session-expired'));
+        }
+      }
       const errorMsg = data && data.error && data.error.message
         ? data.error.message
         : `API Error ${res.status}`;
@@ -76,10 +86,13 @@ async function request(endpoint, options = {}) {
 export const IS_DEMO = false;
 
 // --- DEMO SEED DATA (ISOLATED FOR PREVIEW ONLY) ---
+// Synthetic fixtures for software testing — NO patient names or real PII.
+// All values are placeholder/synthetic and clearly labelled as demo content.
+// Uses PAT- prefix IDs for isolation from real patient records.
 export const DEMO_PATIENTS = [
   {
-    id: 'PAT-8001',
-    name: 'Sarah Johnson',
+    id: 'PAT-DEMO-001',
+    name: 'Demo Patient One',
     age: 45,
     gender: 'Female',
     bloodType: 'A+',
@@ -91,12 +104,12 @@ export const DEMO_PATIENTS = [
       { condition: 'Hypertension', diagnosed: '2020', status: 'Managed' }
     ],
     currentMedications: ['Metformin 500mg BID', 'Lisinopril 10mg Daily'],
-    emergencyContact: 'John Johnson (Husband) — 555-0101',
+    emergencyContact: 'Demo Contact One — 555-0101',
     createdAt: '2026-08-10'
   },
   {
-    id: 'PAT-8002',
-    name: 'Michael Chen',
+    id: 'PAT-DEMO-002',
+    name: 'Demo Patient Two',
     age: 62,
     gender: 'Male',
     bloodType: 'O-',
@@ -108,7 +121,7 @@ export const DEMO_PATIENTS = [
       { condition: 'Hyperlipidemia', diagnosed: '2016', status: 'Managed' }
     ],
     currentMedications: ['Atorvastatin 40mg Daily', 'Clopidogrel 75mg Daily'],
-    emergencyContact: 'Linda Chen (Wife) — 555-0202',
+    emergencyContact: 'Demo Contact Two — 555-0202',
     createdAt: '2026-08-12'
   }
 ];
@@ -151,8 +164,12 @@ export const reportService = {
     if (uploadPayload.history) formData.append('history', uploadPayload.history);
     if (uploadPayload.disease) formData.append('disease', uploadPayload.disease);
 
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE}/reports/upload`, {
       method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: formData
     });
 
@@ -307,37 +324,38 @@ export const evidenceService = {
 };
 
 export const riskService = {
-  async getRisk(reportId) {
-    const data = await request(`/reports/${reportId}/risk`);
-    const risk = data.risk || {};
-    const uncertainty = data.uncertainty || {};
-    const score = risk.riskScore !== undefined ? risk.riskScore : (risk.score !== undefined ? risk.score : null);
-    const overallRisk = (risk.overallRisk || risk.level || (score !== null && score >= 70 ? 'HIGH' : score !== null && score >= 40 ? 'MODERATE' : 'LOW')).toUpperCase();
-
-    return {
-      risk: {
-        score: score,
-        riskScore: score,
-        level: overallRisk.toLowerCase(),
-        overallRisk: overallRisk,
-        contributingParameters: Array.isArray(risk.contributingParameters) && risk.contributingParameters.length > 0
-          ? risk.contributingParameters
-          : [],
-        recommendations: Array.isArray(risk.recommendations) && risk.recommendations.length > 0
-          ? risk.recommendations
-          : []
-      },
-      uncertainty: {
-        confidence: uncertainty.confidence !== undefined ? uncertainty.confidence : null,
-        margin: uncertainty.margin !== undefined ? uncertainty.margin : null,
-        extractionConfidence: uncertainty.extractionConfidence !== undefined ? uncertainty.extractionConfidence : null,
-        predictionConfidence: uncertainty.predictionConfidence !== undefined ? uncertainty.predictionConfidence : null,
-        evidenceConsistency: uncertainty.evidenceConsistency !== undefined ? uncertainty.evidenceConsistency : null,
-        dataCompleteness: uncertainty.dataCompleteness !== undefined ? uncertainty.dataCompleteness : null,
-        decisionSupportStatus: uncertainty.decisionSupportStatus !== undefined ? uncertainty.decisionSupportStatus : null,
-        isAbstain: Boolean(uncertainty.isAbstain)
-      }
-    };
+  async assessRisk(data) {
+    const result = await request('/risk/assess', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return result;
+  },
+  async getRiskAssessment(assessmentId) {
+    const result = await request(`/risk/assessments/${assessmentId}`);
+    return result.assessment || result;
+  },
+  async listRiskAssessments() {
+    const result = await request('/risk/assessments');
+    return result.assessments || [];
+  },
+  async getRiskCategories() {
+    const result = await request('/risk/categories');
+    return result.categories || {};
+  },
+  async getClinicalSources() {
+    const result = await request('/risk/sources');
+    return result.sources || [];
+  },
+  async getReferenceRanges(param) {
+    const url = param ? `/risk/reference-ranges?param=${encodeURIComponent(param)}` : '/risk/reference-ranges';
+    const result = await request(url);
+    return result;
+  },
+  async getEmergencyRules(disease) {
+    const url = disease ? `/risk/rules/${disease}` : '/risk/rules';
+    const result = await request(url);
+    return result.rules || [];
   }
 };
 
@@ -481,6 +499,33 @@ export const nlpService = {
   }
 };
 
+export const orchestratorService = {
+  async startAssessment(payload) {
+    return request('/orchestrator/assessments', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  async getAssessment(assessmentId) {
+    if (!assessmentId) throw new Error('Assessment ID is required');
+    return request(`/orchestrator/assessments/${encodeURIComponent(assessmentId)}`);
+  },
+  async listAssessments() {
+    const data = await request('/orchestrator/assessments');
+    return data.assessments || [];
+  },
+  async verifyAssessment(assessmentId, payload) {
+    if (!assessmentId) throw new Error('Assessment ID is required');
+    return request(`/orchestrator/assessments/${encodeURIComponent(assessmentId)}/verify`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  async listTools() {
+    return request('/orchestrator/tools');
+  }
+};
+
 export const mlService = {
   async getModels() {
     return request('/ml/models');
@@ -501,8 +546,12 @@ export const mlService = {
     return request('/ml/readiness');
   },
   async uploadDataset(formData) {
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE}/ml/datasets/upload`, {
       method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: formData
     });
     const data = await res.json().catch(() => ({}));
@@ -522,6 +571,43 @@ export const mlService = {
       method: 'POST',
       body: JSON.stringify({ disease, features })
     });
+  }
+};
+
+// --- HEALTH COMPANION SERVICE ---
+export const healthCompanionService = {
+  async getChatSessions() {
+    const data = await request('/health-companion/chat/sessions');
+    return data.sessions || [];
+  },
+  async getChatHistory(sessionId) {
+    const data = await request(`/health-companion/chat/sessions/${sessionId}`);
+    return data.messages || [];
+  },
+  async deleteChatSession(sessionId) {
+    return request(`/health-companion/chat/sessions/${sessionId}`, {
+      method: 'DELETE'
+    });
+  },
+  async getMedicines(query, category) {
+    let url = '/health-companion/medicines?limit=100';
+    if (query && query.trim()) url += `&query=${encodeURIComponent(query.trim())}`;
+    if (category && category !== 'All') url += `&category=${encodeURIComponent(category)}`;
+    const data = await request(url);
+    return data.medicines || [];
+  },
+  async identifyMedicineFromImage(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await fetch(`${API_BASE}/health-companion/medicines/identify-image`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'Failed to analyze medicine packaging image.');
+    }
+    return data;
   }
 };
 

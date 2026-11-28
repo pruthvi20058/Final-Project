@@ -11,7 +11,7 @@ const DISEASES = [
   { id: 'typhoid', label: 'Typhoid Fever', icon: '🌡️' }
 ];
 
-export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate }) {
+export default function ReportExtractionPage({ reportId = null, onNavigate }) {
   const [selectedDisease, setSelectedDisease] = useState(null);
   const [diseaseInitialized, setDiseaseInitialized] = useState(false);
   const [report, setReport] = useState(null);
@@ -31,8 +31,9 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
   useEffect(() => {
     let mounted = true;
     async function loadReport() {
+      if (!reportId) return;
       try {
-        const data = await reportService.getById(reportId || 'REP-9001', selectedDisease);
+        const data = await reportService.getById(reportId, selectedDisease);
         if (mounted && data) {
           setReport(data);
           setLabResults(data.labResults || []);
@@ -80,6 +81,23 @@ export default function ReportExtractionPage({ reportId = 'REP-9001', onNavigate
     loadReport();
     return () => { mounted = false; };
   }, [reportId, selectedDisease]);
+
+  if (!reportId) {
+    return (
+      <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
+        <div className="empty-state">
+          <div className="empty-icon">📋</div>
+          <h3>No Report Selected</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+            Please select a laboratory report from the dashboard or reports list to view extraction details.
+          </p>
+          <button className="btn btn-primary" onClick={() => onNavigate('reports')}>
+            View Reports
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loadError) {
     return (

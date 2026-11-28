@@ -159,6 +159,16 @@ function initTables() {
       FOREIGN KEY (doctor_id) REFERENCES doctors(id)
     );
 
+    CREATE TABLE IF NOT EXISTS failed_logins (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      attempted_at TEXT DEFAULT (datetime('now')),
+      ip_address TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_failed_logins_email ON failed_logins(email);
+    CREATE INDEX IF NOT EXISTS idx_failed_logins_attempted_at ON failed_logins(attempted_at);
+
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
       patient_id TEXT,
@@ -343,6 +353,60 @@ function initTables() {
       FOREIGN KEY (session_id) REFERENCES health_chat_sessions(session_id) ON DELETE CASCADE
     );
 
+    -- Task 7: Agentic orchestration workflow state persistence
+    CREATE TABLE IF NOT EXISTS assessments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      patient_id TEXT,
+      status TEXT NOT NULL DEFAULT 'CREATED',
+      input_types TEXT DEFAULT '[]',
+      current_step TEXT,
+      completed_steps TEXT DEFAULT '[]',
+      failed_steps TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES doctors(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_tool_executions (
+      id TEXT PRIMARY KEY,
+      assessment_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      input_valid INTEGER DEFAULT 0,
+      output_summary TEXT DEFAULT '{}',
+      error_message TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      duration_ms INTEGER,
+      retry_count INTEGER DEFAULT 0,
+      FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_risk (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      patient_id TEXT,
+      disease TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      risk_category TEXT DEFAULT 'UNAVAILABLE',
+      emergency_alert TEXT DEFAULT '{}',
+      abnormal_findings TEXT DEFAULT '[]',
+      rules_applied TEXT DEFAULT '[]',
+      evidence_references TEXT DEFAULT '[]',
+      limitations TEXT DEFAULT '[]',
+      ml_probability REAL,
+      ml_probability_used_for_risk INTEGER DEFAULT 0,
+      duration_ms INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES doctors(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_assessments_status ON assessments(status);
+    CREATE INDEX IF NOT EXISTS idx_assessment_tool_executions_assessment ON assessment_tool_executions(assessment_id);
+
     CREATE INDEX IF NOT EXISTS idx_medicines_generic ON medicines(generic_name);
     CREATE INDEX IF NOT EXISTS idx_medicines_brand ON medicines(brand_name);
     CREATE INDEX IF NOT EXISTS idx_diseases_slug ON diseases(slug);
@@ -389,9 +453,11 @@ function seedData() {
     for (const p of patients) stmt.run(p);
   }
 
-  // Seed default doctor account with hashed password
+  // Seed default doctor account ONLY in demo/test environments.
+  // Production must not create publicly known default accounts.
+  const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'test';
   const doctorCount = db.prepare('SELECT COUNT(*) as c FROM doctors').get().c;
-  if (doctorCount === 0) {
+  if (doctorCount === 0 && isDemoMode) {
     const defaultPasswordHash = hashPasswordSync('MediAgent@2026!Secure');
     db.prepare(`
       INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
@@ -405,6 +471,8 @@ function seedData() {
       license_number: 'MG-2026-001',
       role: 'doctor',
     });
+  } else if (doctorCount === 0 && !isDemoMode) {
+    console.warn('[DB] Production mode: no default doctor account created. First registration becomes the initial user.');
   } else {
     // Migrate any existing plaintext passwords to bcrypt hashes
     migratePlaintextPasswords();
@@ -1455,6 +1523,333 @@ function revokeToken() {
   return { success: true };
 }
 
+// ============================================================================
+// TASK 7: AGENTIC ORCHESTRATION WORKFLOW PERSISTENCE
+// ============================================================================
+
+const VALID_ASSESSMENT_STATES = new Set([
+  'CREATED', 'INPUT_RECEIVED', 'PROCESSING', 'AWAITING_VERIFICATION',
+  'VERIFIED', 'ANALYZING', 'EVIDENCE_RETRIEVAL', 'COMPLETED',
+  'PARTIALLY_COMPLETED', 'FAILED'
+]);
+
+function isValidAssessmentState(status) {
+  return VALID_ASSESSMENT_STATES.has(status);
+}
+
+/**
+ * Create a new assessment record.
+ * @param {Object} data - { id, user_id, patient_id, status, input_types }
+ * @returns {Object} created assessment
+ */
+function saveAssessment(data) {
+  const database = getDb();
+  const status = isValidAssessmentState(data.status) ? data.status : 'CREATED';
+  const stmt = database.prepare(`
+    INSERT INTO assessments (id, user_id, patient_id, status, input_types, current_step, completed_steps, failed_steps, created_at, updated_at)
+    VALUES (@id, @user_id, @patient_id, @status, @input_types, @current_step, @completed_steps, @failed_steps, datetime('now'), datetime('now'))
+  `);
+  stmt.run({
+    id: data.id,
+    user_id: data.user_id,
+    patient_id: data.patient_id || null,
+    status,
+    input_types: typeof data.input_types === 'string' ? data.input_types : JSON.stringify(data.input_types || []),
+    current_step: data.current_step || null,
+    completed_steps: typeof data.completed_steps === 'string' ? data.completed_steps : JSON.stringify(data.completed_steps || []),
+    failed_steps: typeof data.failed_steps === 'string' ? data.failed_steps : JSON.stringify(data.failed_steps || []),
+  });
+  return getAssessment(data.id);
+}
+
+/**
+ * Retrieve an assessment by ID with its tool executions.
+ * @param {string} id
+ * @returns {Object|null}
+ */
+function getAssessment(id) {
+  const database = getDb();
+  const row = database.prepare('SELECT * FROM assessments WHERE id = ?').get(id);
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    status: row.status,
+    inputTypes: JSON.parse(row.input_types || '[]'),
+    currentStep: row.current_step,
+    completedSteps: JSON.parse(row.completed_steps || '[]'),
+    failedSteps: JSON.parse(row.failed_steps || '[]'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+  };
+}
+
+/**
+ * List assessments for a user (doctor), newest first.
+ * @param {string} userId
+ * @returns {Array}
+ */
+function getAssessmentsByUser(userId) {
+  const database = getDb();
+  const rows = database.prepare(
+    'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC'
+  ).all(userId);
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    status: row.status,
+    inputTypes: JSON.parse(row.input_types || '[]'),
+    currentStep: row.current_step,
+    completedSteps: JSON.parse(row.completed_steps || '[]'),
+    failedSteps: JSON.parse(row.failed_steps || '[]'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+  }));
+}
+
+/**
+ * Update an assessment's status and step tracking fields.
+ * @param {string} id
+ * @param {Object} updates - { status?, current_step?, completed_steps?, failed_steps?, completed_at? }
+ * @returns {Object|null} updated assessment
+ */
+function updateAssessment(id, updates) {
+  const database = getDb();
+  const fields = [];
+  const params = {};
+
+  if (updates.status !== undefined) {
+    if (!isValidAssessmentState(updates.status)) {
+      throw new Error(`Invalid assessment status: ${updates.status}`);
+    }
+    fields.push('status = @status');
+    params.status = updates.status;
+  }
+  if (updates.current_step !== undefined) {
+    fields.push('current_step = @current_step');
+    params.current_step = updates.current_step;
+  }
+  if (updates.completed_steps !== undefined) {
+    fields.push('completed_steps = @completed_steps');
+    params.completed_steps = typeof updates.completed_steps === 'string'
+      ? updates.completed_steps : JSON.stringify(updates.completed_steps);
+  }
+  if (updates.failed_steps !== undefined) {
+    fields.push('failed_steps = @failed_steps');
+    params.failed_steps = typeof updates.failed_steps === 'string'
+      ? updates.failed_steps : JSON.stringify(updates.failed_steps);
+  }
+  if (updates.completed_at !== undefined) {
+    fields.push('completed_at = @completed_at');
+    params.completed_at = updates.completed_at;
+  }
+  fields.push('updated_at = datetime(\'now\')');
+
+  if (fields.length === 0) return getAssessment(id);
+
+  params.id = id;
+  const stmt = database.prepare(`
+    UPDATE assessments SET ${fields.join(', ')} WHERE id = @id
+  `);
+  stmt.run(params);
+  return getAssessment(id);
+}
+
+/**
+ * Record a single tool execution within an assessment.
+ * @param {Object} data - { id, assessment_id, tool_name, status, input_valid, output_summary, error_message, started_at, completed_at, duration_ms, retry_count }
+ * @returns {Object} created execution record
+ */
+function saveAssessmentToolExecution(data) {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO assessment_tool_executions
+      (id, assessment_id, tool_name, status, input_valid, output_summary, error_message, started_at, completed_at, duration_ms, retry_count)
+    VALUES (@id, @assessment_id, @tool_name, @status, @input_valid, @output_summary, @error_message, @started_at, @completed_at, @duration_ms, @retry_count)
+  `);
+  stmt.run({
+    id: data.id || `exec-${uuidv4().slice(0, 8)}`,
+    assessment_id: data.assessment_id,
+    tool_name: data.tool_name,
+    status: data.status || 'PENDING',
+    input_valid: data.input_valid ? 1 : 0,
+    output_summary: typeof data.output_summary === 'string' ? data.output_summary : JSON.stringify(data.output_summary || {}),
+    error_message: data.error_message || null,
+    started_at: data.started_at || null,
+    completed_at: data.completed_at || null,
+    duration_ms: data.duration_ms || null,
+    retry_count: data.retry_count || 0,
+  });
+  return getAssessmentToolExecution(data.id || `exec-${uuidv4().slice(0, 8)}`);
+}
+
+/**
+ * Retrieve tool executions for an assessment, ordered by started_at.
+ * @param {string} assessmentId
+ * @returns {Array}
+ */
+function getAssessmentToolExecutions(assessmentId) {
+  const database = getDb();
+  const rows = database.prepare(
+    'SELECT * FROM assessment_tool_executions WHERE assessment_id = ? ORDER BY started_at ASC, id ASC'
+  ).all(assessmentId);
+  return rows.map(row => ({
+    id: row.id,
+    assessmentId: row.assessment_id,
+    toolName: row.tool_name,
+    status: row.status,
+    inputValid: Boolean(row.input_valid),
+    outputSummary: JSON.parse(row.output_summary || '{}'),
+    errorMessage: row.error_message,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    durationMs: row.duration_ms,
+    retryCount: row.retry_count,
+  }));
+}
+
+/**
+ * Retrieve an assessment together with its tool executions.
+ * @param {string} id
+ * @returns {Object|null}
+ */
+function getAssessmentWithExecutions(id) {
+  const assessment = getAssessment(id);
+  if (!assessment) return null;
+  assessment.toolExecutions = getAssessmentToolExecutions(id);
+  return assessment;
+}
+
+/**
+ * Task 8: Save a clinical risk assessment to the database.
+ */
+function saveAssessmentRisk(data) {
+  const stmt = db.prepare(`
+    INSERT INTO assessment_risk (
+      id, user_id, patient_id, disease, status, risk_category,
+      emergency_alert, abnormal_findings, rules_applied,
+      evidence_references, limitations, ml_probability,
+      ml_probability_used_for_risk, duration_ms, created_at
+    ) VALUES (
+      @id, @user_id, @patient_id, @disease, @status, @risk_category,
+      @emergency_alert, @abnormal_findings, @rules_applied,
+      @evidence_references, @limitations, @ml_probability,
+      @ml_probability_used_for_risk, @duration_ms, @created_at
+    )
+  `);
+  const info = stmt.run({
+    id: data.id,
+    user_id: data.user_id,
+    patient_id: data.patient_id || null,
+    disease: data.disease || null,
+    status: data.status || 'PENDING',
+    risk_category: data.riskCategory || 'UNAVAILABLE',
+    emergency_alert: data.emergencyAlert || '{}',
+    abnormal_findings: data.abnormalFindings || '[]',
+    rules_applied: data.rulesApplied || '[]',
+    evidence_references: data.evidenceReferences || '[]',
+    limitations: data.limitations || '[]',
+    ml_probability: data.mlProbability || null,
+    ml_probability_used_for_risk: data.mlProbabilityUsedForRisk === false ? 0 : 1,
+    duration_ms: data.durationMs || null,
+    created_at: data.createdAt || new Date().toISOString()
+  });
+  return { id: data.id, changes: info.changes };
+}
+
+/**
+ * Task 8: Get a single risk assessment by ID.
+ */
+function getAssessmentRisk(id) {
+  const row = db.prepare('SELECT * FROM assessment_risk WHERE id = @id').get({ id });
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    disease: row.disease,
+    status: row.status,
+    riskCategory: row.risk_category,
+    emergencyAlert: row.emergency_alert,
+    abnormalFindings: row.abnormal_findings,
+    rulesApplied: row.rules_applied,
+    evidenceReferences: row.evidence_references,
+    limitations: row.limitations,
+    mlProbability: row.ml_probability,
+    mlProbabilityUsedForRisk: Boolean(row.ml_probability_used_for_risk),
+    durationMs: row.duration_ms,
+    createdAt: row.created_at
+  };
+}
+
+/**
+ * Task 8: Get all risk assessments for a user.
+ */
+function getAssessmentRisksByUser(userId) {
+  const rows = db.prepare(
+    'SELECT * FROM assessment_risk WHERE user_id = @user_id ORDER BY created_at DESC'
+  ).all({ user_id: userId });
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    disease: row.disease,
+    status: row.status,
+    riskCategory: row.risk_category,
+    emergencyAlert: row.emergency_alert,
+    abnormalFindings: row.abnormal_findings,
+    rulesApplied: row.rules_applied,
+    evidenceReferences: row.evidence_references,
+    limitations: row.limitations,
+    mlProbability: row.ml_probability,
+    mlProbabilityUsedForRisk: Boolean(row.ml_probability_used_for_risk),
+    durationMs: row.duration_ms,
+    createdAt: row.created_at
+  }));
+}
+
+/**
+ * Record a failed login attempt for an email address.
+ * Used for account lockout / brute-force protection.
+ * @param {string} email - Attempted email
+ * @param {string} [ipAddress] - Client IP address
+ */
+function recordFailedLogin(email, ipAddress) {
+  const database = getDb();
+  const id = `FL-${require('uuid').v4().slice(0, 8)}`;
+  database.prepare(
+    'INSERT INTO failed_logins (id, email, ip_address, attempted_at) VALUES (?, ?, ?, datetime(\'now\'))'
+  ).run(id, email, ipAddress || null);
+}
+
+/**
+ * Count failed login attempts for an email within a time window.
+ * @param {string} email
+ * @param {number} windowMinutes - Lookback window in minutes
+ * @returns {number}
+ */
+function countFailedLogins(email, windowMinutes = 15) {
+  const database = getDb();
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+  const row = database.prepare(
+    'SELECT COUNT(*) as c FROM failed_logins WHERE email = ? AND attempted_at >= ?'
+  ).get(email, since);
+  return row ? row.c : 0;
+}
+
+/**
+ * Clear failed login attempts for an email (after successful login).
+ * @param {string} email
+ */
+function clearFailedLogins(email) {
+  const database = getDb();
+  database.prepare('DELETE FROM failed_logins WHERE email = ?').run(email);
+}
+
 module.exports = {
   getDb,
   hashPassword,
@@ -1486,5 +1881,22 @@ module.exports = {
   getHealthChatHistory,
   getAllHealthChatSessions,
   deleteHealthChatSession,
-  invalidatePredictionForReport
+  invalidatePredictionForReport,
+  // Task 7: Agentic orchestration workflow persistence
+  saveAssessment,
+  getAssessment,
+  getAssessmentsByUser,
+  updateAssessment,
+  saveAssessmentToolExecution,
+  getAssessmentToolExecutions,
+  getAssessmentWithExecutions,
+  isValidAssessmentState,
+  // Task 8: Clinical risk assessment persistence
+  saveAssessmentRisk,
+  getAssessmentRisk,
+  getAssessmentRisksByUser,
+  // Authentication security
+  recordFailedLogin,
+  countFailedLogins,
+  clearFailedLogins
 };

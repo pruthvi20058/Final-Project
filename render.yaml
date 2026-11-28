@@ -4,7 +4,7 @@ services:
     name: mediagent-backend
     runtime: node
     rootDir: server
-    buildCommand: npm install && pip install -r requirements.txt
+    buildCommand: npm ci && pip install -r requirements.txt
     startCommand: node index.js
     plan: free
     envVars:
@@ -14,4 +14,14 @@ services:
         value: 20.18.0
       - key: PORT
         value: 10000
+      - key: DATABASE_PATH
+        value: /var/data/mediagent.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: PYTHON_EXECUTABLE
+        value: python3
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://your-frontend-domain.vercel.app
     autoDeploy: true

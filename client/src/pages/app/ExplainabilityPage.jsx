@@ -70,7 +70,7 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
     return (
       <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
         <div className="spinner" style={{ margin: '0 auto 16px' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Computing TreeSHAP feature attributions...</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Computing SHAP feature attributions...</p>
       </div>
     );
   }
@@ -123,7 +123,7 @@ export default function ExplainabilityPage({ predictionId, reportId = 'REP-9001'
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h4 style={{ color: '#fff' }}>SHAP Feature Attribution Weights</h4>
             <span style={{ fontSize: '0.72rem', color: '#00d4aa', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4 }}>
-              TreeSHAP Explainer Engine
+              SHAP Explainer Engine
             </span>
           </div>
 

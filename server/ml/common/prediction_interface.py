@@ -45,6 +45,15 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
     readiness_reason = model_info.get("readiness_reason", "No readiness reason documented.")
     model_status = model_info.get("status", "").upper()
 
+    # Readiness levels that BLOCK inference entirely
+    BLOCKED_READINESS = {
+        "NOT_TRAINED", "TRAINING", "DATA_LEAKAGE_SUSPECTED",
+        "NEEDS_VALIDATION", "FAILED", "UNAVAILABLE", "MODEL_NOT_VALIDATED",
+    }
+
+    # Readiness levels that ALLOW inference but with strong warnings
+    LOW_PERF_READINESS = {"LOW_PERFORMANCE", "VERIFIED_LOW_PERFORMANCE"}
+
     # Block inference for diseases that are not verified/available
     if model_status not in ["TRAINED", "AVAILABLE"]:
         return {
@@ -55,8 +64,32 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
             "message": f"ML prediction for {disease_key.title()} is currently unavailable. Model status: {model_status}.",
             "readiness": readiness,
             "readiness_reason": readiness_reason,
+            "blocked": True,
             "disclaimer": "Diagnostic ML prediction is guarded until an authenticated training dataset is provided."
         }
+
+    # Block inference when readiness has failed checks (data leakage suspected, not validated, etc.)
+    if readiness.upper() in BLOCKED_READINESS:
+        return {
+            "status": "MODEL_NOT_AVAILABLE",
+            "disease": disease_key,
+            "modelName": model_info.get("display_name", disease_key.title()),
+            "modelVersion": model_info.get("model_version", "N/A"),
+            "message": f"ML prediction for {disease_key.title()} is blocked. Readiness: {readiness}. {readiness_reason}",
+            "readiness": readiness,
+            "readiness_reason": readiness_reason,
+            "blocked": True,
+            "disclaimer": "Diagnostic ML prediction is blocked because the model has not passed readiness checks."
+        }
+
+    # Low-performance models: allow inference with a strong warning
+    low_performance_warning = None
+    if readiness.upper() in LOW_PERF_READINESS:
+        low_performance_warning = (
+            f"WARNING: {disease_key.title()} model has low performance ({readiness}). "
+            f"{readiness_reason} Results should be treated as unreliable and "
+            f"confirmed by appropriate laboratory testing."
+        )
 
     # Block inference if model has not been evaluated (no metrics)
     metrics = model_info.get("metrics", {})
@@ -67,8 +100,9 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
             "modelName": model_info.get("display_name", disease_key.title()),
             "modelVersion": model_info.get("model_version", "N/A"),
             "message": f"Model for {disease_key.title()} has no evaluation metrics. Model not validated.",
-            "readiness": "MODEL_NOT_VALIDATED",
+            "readiness": readiness,
             "readiness_reason": readiness_reason,
+            "blocked": True,
             "disclaimer": "Diagnostic ML prediction is guarded until model evaluation is complete."
         }
 
@@ -215,6 +249,7 @@ def predict_disease_case(disease_name, feature_data, image_path=None):
         "readiness": readiness,
         "readiness_reason": readiness_reason,
         "validation": validation,
+        "low_performance_warning": low_performance_warning,
         "disclaimer": "AI-assisted clinical decision support screening tool. Not a confirmed diagnosis. All results should be evaluated by a qualified healthcare professional. Model probability is not a clinical risk score."
     }
 
