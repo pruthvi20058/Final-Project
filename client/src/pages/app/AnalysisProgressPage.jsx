@@ -11,9 +11,9 @@ export default function AnalysisProgressPage({ reportId = 'REP-9001', onComplete
     { name: 'Clinical Information Extraction', icon: '📊', desc: 'Extracting test names, numeric values, units, reference ranges' },
     { name: 'Range & Outlier Validation', icon: '✅', desc: 'Verifying values against medical threshold boundaries' },
     { name: 'Patient Profile Synchronization', icon: '👤', desc: 'Integrating historical lab records & clinical context' },
-    { name: 'ML Disease Risk Prediction', icon: '🧬', desc: 'Calibrated XGBoost classifier computing probabilities' },
+    { name: 'ML Disease Risk Prediction', icon: '🧬', desc: 'Logistic Regression classifier computing probabilities' },
     { name: 'Explainability & Feature Importance (SHAP)', icon: '💡', desc: 'Attributing key biomarker weights driving risk score' },
-    { name: 'Medical Evidence RAG Retrieval', icon: '📚', desc: 'FAISS vector search indexing ADA & ESC guidelines' },
+    { name: 'Medical Evidence RAG Retrieval', icon: '📚', desc: 'TF-IDF hybrid search indexing clinical guidelines' },
     { name: 'Risk Assessment & Uncertainty Engine', icon: '🛡️', desc: 'Calculating overall risk level and confidence bounds' },
     { name: 'Clinical Decision-Support Report Generation', icon: '📋', desc: 'Synthesizing 13-section physician summary report' }
   ];

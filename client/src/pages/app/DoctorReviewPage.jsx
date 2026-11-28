@@ -2,33 +2,50 @@ import React, { useState, useEffect } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 import SafetyDisclaimer from '../../components/SafetyDisclaimer';
 import StatusBadge from '../../components/StatusBadge';
-import { reportService, predictionService, reviewService, FALLBACK_REPORT, FALLBACK_PREDICTION } from '../../services/api';
+import { reportService, predictionService, reviewService } from '../../services/api';
 
 export default function DoctorReviewPage({ reportId = 'REP-9001', doctor, notify, onNavigate }) {
-  const [report, setReport] = useState(FALLBACK_REPORT);
-  const [pred, setPred] = useState(FALLBACK_PREDICTION);
+  const [report, setReport] = useState(null);
+  const [pred, setPred] = useState(null);
   const [decision, setDecision] = useState(null); // 'accepted' | 'modified' | 'rejected' | 'info_requested'
   const [comments, setComments] = useState('');
   const [modifiedPrediction, setModifiedPrediction] = useState('');
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadData() {
       try {
+        setErrorMsg(null);
         const rep = await reportService.getById(reportId || 'REP-9001');
         const p = await predictionService.getPrediction(rep?.id || reportId || 'REP-9001');
         if (mounted) {
           if (rep) setReport(rep);
           if (p) setPred(p);
         }
-      } catch {
-        // preserve fallback
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+        }
       }
     }
     loadData();
     return () => { mounted = false; };
   }, [reportId]);
+
+  if (errorMsg) {
+    return (
+      <div className="fade-in" style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔌</div>
+        <h3 style={{ color: '#ef4444', marginBottom: 12 }}>Unable to load doctor review panel</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{errorMsg}</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          Retry ↻
+        </button>
+      </div>
+    );
+  }
 
   if (!report || !pred) {
     return (
@@ -52,8 +69,8 @@ export default function DoctorReviewPage({ reportId = 'REP-9001', doctor, notify
 
     await reviewService.submitReview({
       reportId: report.id,
-      doctorId: doctor?.id || 'DOC-001',
-      doctorName: doctor?.name || 'Dr. Attending Physician',
+      doctorId: doctor?.id || null,
+      doctorName: doctor?.name || 'Unknown',
       decision,
       comments,
       modifiedPrediction: decision === 'modified' ? modifiedPrediction : null,
@@ -123,7 +140,7 @@ export default function DoctorReviewPage({ reportId = 'REP-9001', doctor, notify
                 Decision: {decision?.toUpperCase()}
               </p>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: 8 }}>
-                Logged by {doctor?.name || 'Dr. Attending Physician'} on {new Date().toLocaleString()}
+                Logged by {doctor?.name || 'Unknown'} on {new Date().toLocaleString()}
               </p>
               <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setReviewSubmitted(false)}>
                 Edit Decision

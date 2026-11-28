@@ -9,6 +9,10 @@ try {
   console.warn('[Parser] Optional sharp package not available. Raw OCR will be used.');
 }
 
+const ONTOLOGY = require('./labParameterOntology');
+const UNIT_NORM = require('./unitNormalization');
+const IMAGE_PREP = require('./imagePreprocessing');
+
 // Expanded Canonical Lab Term Normalization Map
 const NORMALIZATION_MAP = {
   // Glycemic
@@ -136,6 +140,29 @@ const VALID_UNITS = new Set([
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * E3: Clean a raw parameter name for ontology resolution.
+ *
+ * Strips trailing parentheticals (e.g. "Alkaline Phosphatase (ALP)" ->
+ * "alkaline phosphatase"), trailing digits (e.g. "Age 52" -> "age"), and
+ * collapses whitespace. This lets the versioned ontology resolve names that
+ * the OCR/text extractor captures together with their values or units.
+ *
+ * Returns the cleaned, lowercased name, or null if nothing meaningful remains.
+ */
+function cleanParamNameForOntology(rawName) {
+  if (!rawName || typeof rawName !== 'string') return null;
+  let cleaned = rawName.toLowerCase().trim();
+  // Remove parenthetical annotations like "(ALP)", "(mg/dL)"
+  cleaned = cleaned.replace(/\([^)]*\)*/g, ' ');
+  // Remove trailing standalone digits (e.g. "Age 52" -> "age")
+  cleaned = cleaned.replace(/\s+\d{1,4}\s*$/, ' ');
+  // Remove a trailing value-like token if it looks like a unit/number remnant
+  cleaned = cleaned.replace(/\s+\d+(?:[.,]\d+)?\s*$/, ' ');
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  return cleaned || null;
 }
 
 // Pre-sorted keys by length descending to match most specific names first
@@ -400,36 +427,35 @@ async function extractTextFromFile(filePath, mimeType) {
   }
 
   // 2. Image Tesseract OCR with TSV & Bounding Boxes
-  if (['.jpg', '.jpeg', '.png', '.webp', '.bmp'].includes(fileExt) || (mimeType && mimeType.startsWith('image/'))) {
+  if (['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif'].includes(fileExt) || (mimeType && mimeType.startsWith('image/'))) {
     try {
-      let imageBuffer = fs.readFileSync(filePath);
+      const imageBuffer = fs.readFileSync(filePath);
+      let ocrInputBuffer = imageBuffer;
+      let preprocessingMeta = null;
       let dimensions = { width: null, height: null };
 
-      if (sharp) {
+      if (IMAGE_PREP.isSupportedImageFormat(mimeType, fileExt)) {
         try {
-          const meta = await sharp(imageBuffer).metadata();
-          dimensions = { width: meta.width, height: meta.height };
-          
-          let pipeline = sharp(imageBuffer).grayscale();
-
-          // Intelligent resizing for document OCR:
-          // Optimal OCR resolution is 1300px - 1500px width.
-          // Never double an already high-res image (e.g. 1700px -> 3400px caused 4x OCR slowdown).
-          if (meta.width && meta.width > 1500) {
-            pipeline = pipeline.resize({ width: 1400, fit: 'inside' });
-          } else if (meta.width && meta.width < 900) {
-            pipeline = pipeline.resize({ width: Math.min(meta.width * 2, 1300), fit: 'inside' });
+          const prep = await IMAGE_PREP.preprocessImage(imageBuffer);
+          ocrInputBuffer = prep.processedBuffer;
+          dimensions = { width: prep.width, height: prep.height };
+          preprocessingMeta = prep.metadata;
+        } catch (prepErr) {
+          console.warn('[Parser] Image preprocessing skipped, using raw buffer:', prepErr.message);
+          if (sharp) {
+            try {
+              const meta = await sharp(imageBuffer).metadata();
+              dimensions = { width: meta.width, height: meta.height };
+            } catch {}
           }
-
-          imageBuffer = await pipeline
-            .normalize()
-            .toBuffer();
-        } catch (sErr) {
-          console.warn('[Parser] Sharp preprocessing skipped:', sErr.message);
         }
       }
 
-      let ret = await runOptimizedOCR(imageBuffer);
+      let ret = await runOptimizedOCR(ocrInputBuffer);
+
+      if (preprocessingMeta) {
+        ret.preprocessingMeta = preprocessingMeta;
+      }
 
       if ((!ret.data.text || ret.data.text.trim().length < 30) && sharp) {
         const worker = await getOrCreateTesseractWorker();
@@ -447,7 +473,8 @@ async function extractTextFromFile(filePath, mimeType) {
         pages: 1,
         confidence: ret.data.confidence ? Math.round(ret.data.confidence) : null,
         method: 'TESSERACT_OCR',
-        dimensions
+        dimensions,
+        preprocessingMeta: ret.preprocessingMeta || preprocessingMeta || null
       };
     } catch (err) {
       console.warn('[Parser] Image Tesseract OCR failed:', err.message);
@@ -601,12 +628,52 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
       // Data Quality Classification
       let quality = 'VALID';
       let status = 'NORMAL';
+      const validationFlags = [];
+
+      // Physiological plausibility bounds per parameter
+      const PHYSIOLOGICAL_BOUNDS = {
+        // Hematology
+        pcv: { max: 60, min: 10, unit: '%' },        // Hematocrit / Packed Cell Volume
+        hemoglobin: { min: 3, max: 25, unit: 'g/dL' },
+        wbc: { min: 500, max: 100000, unit: 'cells/µL' },
+        rbc: { min: 1.0, max: 8.0, unit: 'million/µL' },
+        platelets: { min: 10, max: 1000, unit: 'lakhs/µL' },
+        mcv: { min: 50, max: 120, unit: 'fL' },
+        mch: { min: 15, max: 40, unit: 'pg' },
+        mchc: { min: 20, max: 40, unit: 'g/dL' },
+        // Biochemical
+        glucose: { min: 20, max: 600, unit: 'mg/dL' },
+        creatinine: { min: 0.1, max: 20, unit: 'mg/dL' },
+        bun: { min: 1, max: 100, unit: 'mg/dL' },
+        alt: { min: 1, max: 2000, unit: 'U/L' },
+        ast: { min: 1, max: 2000, unit: 'U/L' },
+        total_bilirubin: { min: 0.1, max: 30, unit: 'mg/dL' },
+        hba1c: { min: 3.0, max: 20.0, unit: '%' },
+        bmi: { min: 10, max: 70, unit: 'kg/m²' },
+        age: { min: 1, max: 120, unit: 'years' }
+      };
+
+      const bounds = PHYSIOLOGICAL_BOUNDS[normalizedName];
 
       if (numVal < 0) {
         quality = 'INVALID';
         status = 'INVALID';
-      } else if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
-        quality = 'SUSPICIOUS';
+        validationFlags.push('negative_value');
+      } else if (bounds) {
+        if (numVal < bounds.min || numVal > bounds.max) {
+          quality = 'SUSPICIOUS';
+          validationFlags.push(`value_outside_physiological_range(${bounds.min}-${bounds.max}${bounds.unit})`);
+        }
+        // HCT-specific: flag values > 60% (physiologically impossible for humans)
+        if (normalizedName === 'pcv' && numVal > 60) {
+          validationFlags.push('hematocrit_above_60_percent_physiologically_impossible');
+        }
+      }
+
+      // Existing high-value flags (kept for backward compatibility)
+      if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
+        if (quality === 'VALID') quality = 'SUSPICIOUS';
+        validationFlags.push('high_value_flagged');
         status = 'HIGH';
       } else if (normalizedName === 'glucose' && numVal >= 126) {
         status = 'HIGH';
@@ -616,29 +683,64 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
         status = 'LOW';
       }
 
+      // Decimal placement detection: flag whole numbers > 100 that could be shifted decimals
+      // (e.g. OCR reads "39.5" as "395" when the decimal point is dropped)
+      if (numVal > 100 && Number.isInteger(numVal) && normalizedName !== 'wbc' && normalizedName !== 'platelets') {
+        const shifted = numVal / 10;
+        const shiftedBounds = bounds ? bounds : {};
+        if (shifted >= (shiftedBounds.min || 0) && shifted <= (shiftedBounds.max || Infinity)) {
+          validationFlags.push(`possible_decimal_shift(value_${numVal}_may_be_${shifted})`);
+          if (quality === 'VALID') quality = 'SUSPICIOUS';
+        }
+      }
+
       // Calculate extraction confidence from OCR word tokens
       const rowWordConfs = line.words.map(w => w.confidence).filter(c => c !== null);
       const avgConf = rowWordConfs.length > 0 ? Math.round(rowWordConfs.reduce((a, b) => a + b, 0) / rowWordConfs.length) : null;
+
+      // --- E3: Ontology-based parameter resolution & unit normalization ---
+      const ontologyMatch = ONTOLOGY.resolveParameter(
+        cleanParamNameForOntology(rawName) || rawName
+      );
+      const canonicalId = ontologyMatch ? ontologyMatch.parameter.id : null;
+      const ontologyMatchType = ontologyMatch ? ontologyMatch.matchType : null;
+
+      const unitNormResult = UNIT_NORM.normalizeMeasurement(
+        canonicalId || normalizedName,
+        numVal,
+        cleanUnit || null,
+        null
+      );
 
       const labItem = {
         id: `LR-${reportIdPrefix(extractionMethod)}-${idCounter++}`,
         section: currentSection,
         rawName: rawName,
         normalizedName: normalizedName,
+        canonicalId,
+        ontologyMatchType,
         testName: rawName,
         value: numVal,
+        originalValue: numVal,
         unit: cleanUnit,
         units: cleanUnit,
+        normalizedValue: unitNormResult.normalizedValue !== null ? unitNormResult.normalizedValue : numVal,
+        normalizedUnit: unitNormResult.normalizedUnit || cleanUnit || null,
+        conversionMethod: unitNormResult.conversionMethod,
+        conversionStatus: unitNormResult.conversionStatus,
         referenceRange: parseReferenceRangeStruct(rawRefText),
         status: status,
         quality: quality,
+        validationFlags: validationFlags,
         source: {
           page: 1,
           text: lineText,
           boundingBox: bbox
         },
+        sourceLocation: bbox ? `x:${bbox.x0},y:${bbox.y0},w:${bbox.x1 - bbox.x0},h:${bbox.y1 - bbox.y0}` : null,
         extractionMethod: extractionMethod,
         confidence: avgConf,
+        preprocessingMeta: extraData.preprocessingMeta || null,
         validatedByUser: false
       };
 
@@ -669,6 +771,7 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
         /ph:|phone|tel:|mobile|expertise|empowering|-40401234/i.test(lineText) ||
         /page\s+\d+\s+of|medical\s+laboratory\s+page/i.test(lineText) ||
         /report\s+no:|accession|barcode|nabl|registration|hospital|clinic|doctor|dr\./i.test(lineText) ||
+        /report\s*date|collected|collection\s*date|date\s*of|reporting\s*date/i.test(lineText) ||
         /^(patient|sample|received|reported|date|time|address|email|website|age\s*[\/:=]?|sex\s*[\/:=]?|gender)\b/i.test(lineText) ||
         /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(lineText) ||
         /\d{1,2}:\d{2}\s*(?:AM|PM|MM)/i.test(lineText)
@@ -692,12 +795,48 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
 
           let quality = 'VALID';
           let status = 'NORMAL';
+          const validationFlags = [];
+
+          // Physiological plausibility bounds per parameter
+          const PHYSIOLOGICAL_BOUNDS = {
+            pcv: { max: 60, min: 10, unit: '%' },
+            hemoglobin: { min: 3, max: 25, unit: 'g/dL' },
+            wbc: { min: 500, max: 100000, unit: 'cells/µL' },
+            rbc: { min: 1.0, max: 8.0, unit: 'million/µL' },
+            platelets: { min: 10, max: 1000, unit: 'lakhs/µL' },
+            mcv: { min: 50, max: 120, unit: 'fL' },
+            mch: { min: 15, max: 40, unit: 'pg' },
+            mchc: { min: 20, max: 40, unit: 'g/dL' },
+            glucose: { min: 20, max: 600, unit: 'mg/dL' },
+            creatinine: { min: 0.1, max: 20, unit: 'mg/dL' },
+            bun: { min: 1, max: 100, unit: 'mg/dL' },
+            alt: { min: 1, max: 2000, unit: 'U/L' },
+            ast: { min: 1, max: 2000, unit: 'U/L' },
+            total_bilirubin: { min: 0.1, max: 30, unit: 'mg/dL' },
+            hba1c: { min: 3.0, max: 20.0, unit: '%' },
+            bmi: { min: 10, max: 70, unit: 'kg/m²' },
+            age: { min: 1, max: 120, unit: 'years' }
+          };
+
+          const bounds = PHYSIOLOGICAL_BOUNDS[normalizedName];
 
           if (numVal < 0) {
             quality = 'INVALID';
             status = 'INVALID';
-          } else if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
-            quality = 'SUSPICIOUS';
+            validationFlags.push('negative_value');
+          } else if (bounds) {
+            if (numVal < bounds.min || numVal > bounds.max) {
+              quality = 'SUSPICIOUS';
+              validationFlags.push(`value_outside_physiological_range(${bounds.min}-${bounds.max}${bounds.unit})`);
+            }
+            if (normalizedName === 'pcv' && numVal > 60) {
+              validationFlags.push('hematocrit_above_60_percent_physiologically_impossible');
+            }
+          }
+
+          if ((normalizedName === 'glucose' && numVal > 300) || (normalizedName === 'creatinine' && numVal > 5) || (normalizedName === 'alt' && numVal > 200)) {
+            if (quality === 'VALID') quality = 'SUSPICIOUS';
+            validationFlags.push('high_value_flagged');
             status = 'HIGH';
           } else if (normalizedName === 'glucose' && numVal >= 126) {
             status = 'HIGH';
@@ -707,21 +846,54 @@ function parseLabValuesFromText(rawText, extractionMethod = 'PDF_PARSE', extraDa
             status = 'LOW';
           }
 
+          if (numVal > 100 && Number.isInteger(numVal) && normalizedName !== 'wbc' && normalizedName !== 'platelets') {
+            const shifted = numVal / 10;
+            const shiftedBounds = bounds ? bounds : {};
+            if (shifted >= (shiftedBounds.min || 0) && shifted <= (shiftedBounds.max || Infinity)) {
+              validationFlags.push(`possible_decimal_shift(value_${numVal}_may_be_${shifted})`);
+              if (quality === 'VALID') quality = 'SUSPICIOUS';
+            }
+          }
+
+          // --- E3: Ontology-based parameter resolution & unit normalization ---
+          const ontologyMatchB = ONTOLOGY.resolveParameter(
+            cleanParamNameForOntology(rawName) || rawName
+          );
+          const canonicalIdB = ontologyMatchB ? ontologyMatchB.parameter.id : null;
+          const ontologyMatchTypeB = ontologyMatchB ? ontologyMatchB.matchType : null;
+
+          const unitNormResultB = UNIT_NORM.normalizeMeasurement(
+            canonicalIdB || normalizedName,
+            numVal,
+            unit || null,
+            null
+          );
+
           const labItem = {
             id: `LR-${reportIdPrefix(extractionMethod)}-${idCounter++}`,
             section: currentSection,
             rawName: rawName,
             normalizedName: normalizedName,
+            canonicalId: canonicalIdB,
+            ontologyMatchType: ontologyMatchTypeB,
             testName: rawName,
             value: numVal,
+            originalValue: numVal,
             unit: unit,
             units: unit,
+            normalizedValue: unitNormResultB.normalizedValue !== null ? unitNormResultB.normalizedValue : numVal,
+            normalizedUnit: unitNormResultB.normalizedUnit || unit || null,
+            conversionMethod: unitNormResultB.conversionMethod,
+            conversionStatus: unitNormResultB.conversionStatus,
             referenceRange: parseReferenceRangeStruct(match[4] || ''),
             status: status,
             quality: quality,
+            validationFlags: validationFlags,
             source: { page: 1, text: lineText },
+            sourceLocation: null,
             extractionMethod: extractionMethod,
             confidence: null,
+            preprocessingMeta: extraData.preprocessingMeta || null,
             validatedByUser: false
           };
 
@@ -786,5 +958,11 @@ module.exports = {
   normalizeLabName,
   parseTSVWords,
   groupWordsIntoLines,
-  extractDemographicsFromText
+  extractDemographicsFromText,
+  // E3 additions
+  ONTOLOGY,
+  UNIT_NORM,
+  resolveLabParameter: ONTOLOGY.resolveParameter,
+  normalizeMeasurement: UNIT_NORM.normalizeMeasurement,
+  getOntologyMeta: ONTOLOGY.getOntologyMeta
 };

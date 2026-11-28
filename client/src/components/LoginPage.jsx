@@ -76,27 +76,9 @@ export default function LoginPage({ onLogin }) {
         }
       }
     } catch (err) {
-      console.warn("[MediAgent Login] Express server unreachable, using offline fallback:", err.message);
+      setError('Unable to connect to the MediAgent server. Please try again later.');
+      setLoading(false);
     }
-
-    // Graceful Clinician Fallback Login
-    const nameMap = {
-      'pavan@mediagent.com': { id: 'DOC-001', name: 'Dr. Pavan Kumar', email: 'pavan@mediagent.com', specialty: 'General Medicine', avatar: 'PK' },
-      'sarah@mediagent.com': { id: 'DOC-002', name: 'Dr. Sarah Mitchell', email: 'sarah@mediagent.com', specialty: 'Cardiology', avatar: 'SM' },
-      'james@mediagent.com': { id: 'DOC-003', name: 'Dr. James Chen', email: 'james@mediagent.com', specialty: 'Neurology', avatar: 'JC' }
-    };
-
-    const doc = nameMap[email.trim().toLowerCase()] || {
-      id: 'DOC-001',
-      name: email.split('@')[0].replace('.', ' ').toUpperCase() ? `Dr. ${email.split('@')[0]}` : 'Dr. Pavan Kumar',
-      email: email.trim(),
-      specialty: 'Attending Physician',
-      avatar: 'DR'
-    };
-
-    localStorage.setItem('mediagent_token', 'token-demo-session');
-    localStorage.setItem('mediagent_doctor', JSON.stringify(doc));
-    onLogin(doc);
   };
 
   const timeStr = currentTime.toLocaleTimeString('en-US', {
@@ -268,33 +250,7 @@ export default function LoginPage({ onLogin }) {
               </button>
             </form>
 
-            <div className="login-divider">
-              <span>Demo Credentials</span>
-            </div>
 
-            <div className="login-demo-creds">
-              <button type="button" className="login-demo-btn" onClick={() => { setEmail('pavan@mediagent.com'); setPassword('pavan123'); }}>
-                <span className="login-demo-avatar" style={{ background: 'linear-gradient(135deg, #00d4aa, #059669)' }}>PK</span>
-                <div>
-                  <strong>Dr. Pavan Kumar</strong>
-                  <span>General Medicine</span>
-                </div>
-              </button>
-              <button type="button" className="login-demo-btn" onClick={() => { setEmail('sarah@mediagent.com'); setPassword('sarah123'); }}>
-                <span className="login-demo-avatar" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>SM</span>
-                <div>
-                  <strong>Dr. Sarah Mitchell</strong>
-                  <span>Cardiology</span>
-                </div>
-              </button>
-              <button type="button" className="login-demo-btn" onClick={() => { setEmail('james@mediagent.com'); setPassword('james123'); }}>
-                <span className="login-demo-avatar" style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}>JC</span>
-                <div>
-                  <strong>Dr. James Chen</strong>
-                  <span>Neurology</span>
-                </div>
-              </button>
-            </div>
 
             <div className="login-footer">
               <p>🔐 Secure HIPAA-compliant access</p>

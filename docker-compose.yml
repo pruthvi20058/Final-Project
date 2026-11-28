@@ -1,0 +1,78 @@
+# MediAgent — Docker Compose (Task 10: Docker Containerization)
+# Supports: React frontend, Express backend, Python ML, SQLite, OCR, SHAP, RAG KB
+#
+# Usage:
+#   docker compose up --build          # Build and start all services
+#   docker compose up -d               # Start in detached mode
+#   docker compose down                # Stop and remove containers
+#   docker compose logs -f             # Follow logs
+#
+# Environment variables are loaded from .env (copy from .env.example).
+
+services:
+  # ── Backend: Express + SQLite + Python ML ──────────────────────────────
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mediagent-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_PATH=/data/mediagent.db
+      - UPLOAD_DIR=/data/uploads
+      - PYTHON_EXECUTABLE=python3
+      - PYTHON_PATH=python3
+      - ML_INFERENCE_TIMEOUT_MS=7000
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=24h
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      - TRANSLATION_PROVIDER=mymemory
+      - LOG_LEVEL=info
+      - BACKUP_DIR=/data/backups
+      - BACKUP_RETENTION_DAYS=30
+    volumes:
+      - mediagent_data:/data
+    depends_on:
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health/ready"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - mediagent-network
+
+  # ── Frontend: React + Vite (served by nginx) ───────────────────────────
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3001}
+    container_name: mediagent-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3001}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mediagent-network
+
+# ── Volumes ───────────────────────────────────────────────────────────────
+volumes:
+  mediagent_data:
+    driver: local
+    # Persists SQLite DB, uploads, and backups across container restarts
+
+# ── Networks ───────────────────────────────────────────────────────────────
+networks:
+  mediagent-network:
+    driver: bridge

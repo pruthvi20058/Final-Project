@@ -1,8 +1,71 @@
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+
+const SALT_ROUNDS = 12;
 
 let db = null;
+
+/**
+ * Hash a plaintext password using bcrypt.
+ * @param {string} plainPassword
+ * @returns {Promise<string>} bcrypt hash
+ */
+async function hashPassword(plainPassword) {
+  return bcrypt.hash(plainPassword, SALT_ROUNDS);
+}
+
+/**
+ * Verify a plaintext password against a bcrypt hash.
+ * @param {string} plainPassword
+ * @param {string} hash
+ * @returns {Promise<boolean>}
+ */
+async function verifyPassword(plainPassword, hash) {
+  return bcrypt.compare(plainPassword, hash);
+}
+
+/**
+ * Sync version of hashPassword for use in seed/initialization contexts.
+ * @param {string} plainPassword
+ * @returns {string} bcrypt hash
+ */
+function hashPasswordSync(plainPassword) {
+  return bcrypt.hashSync(plainPassword, SALT_ROUNDS);
+}
+
+/**
+ * Sync version of verifyPassword for use in login contexts.
+ * @param {string} plainPassword
+ * @param {string} hash
+ * @returns {boolean}
+ */
+function verifyPasswordSync(plainPassword, hash) {
+  return bcrypt.compareSync(plainPassword, hash);
+}
+
+/**
+ * Migrate existing plaintext passwords in the doctors table to bcrypt hashes.
+ * Any doctor with a non-null `password` and null `password_hash` gets their
+ * plaintext password hashed and stored in `password_hash`, then `password` is cleared.
+ * This runs once at startup and never logs or returns plaintext passwords.
+ */
+function migratePlaintextPasswords() {
+  try {
+    const doctors = db.prepare('SELECT id, password, password_hash FROM doctors WHERE password IS NOT NULL AND password_hash IS NULL').all();
+    for (const doctor of doctors) {
+      try {
+        const hash = hashPasswordSync(doctor.password);
+        db.prepare('UPDATE doctors SET password_hash = ?, password = NULL WHERE id = ?').run(hash, doctor.id);
+      } catch (err) {
+        console.warn(`[DB] Failed to migrate password for doctor ${doctor.id}:`, err.message);
+      }
+    }
+  } catch {
+    // Table may not exist yet or column may be missing; ignore
+  }
+}
 
 function getDb() {
   if (!db) {
@@ -28,7 +91,9 @@ function initTables() {
       allergies TEXT DEFAULT '[]',
       history TEXT DEFAULT '[]',
       current_medications TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES doctors(id)
     );
 
     CREATE TABLE IF NOT EXISTS clinical_cases (
@@ -78,9 +143,11 @@ function initTables() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
+      password TEXT,
+      password_hash TEXT,
       specialty TEXT NOT NULL,
       license_number TEXT NOT NULL,
+      role TEXT DEFAULT 'doctor',
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -105,9 +172,13 @@ function initTables() {
       chief_complaint TEXT,
       symptoms TEXT,
       history TEXT,
-      status TEXT DEFAULT 'analyzed',
+      status TEXT DEFAULT 'UPLOADED',
+      verification_timestamp TEXT,
+      verified_by TEXT,
       demographics TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES doctors(id)
     );
 
     CREATE TABLE IF NOT EXISTS lab_results (
@@ -117,12 +188,17 @@ function initTables() {
       raw_name TEXT,
       normalized_name TEXT,
       value REAL NOT NULL,
+      original_value REAL,
       units TEXT,
       reference_range TEXT,
       status TEXT NOT NULL,
       quality TEXT DEFAULT 'VALID',
+      validation_flags TEXT DEFAULT '[]',
       confidence REAL DEFAULT 95.0,
+      source_location TEXT,
       validated_by_user INTEGER DEFAULT 0,
+      validated_at TEXT,
+      validated_by TEXT,
       FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE
     );
 
@@ -267,6 +343,60 @@ function initTables() {
       FOREIGN KEY (session_id) REFERENCES health_chat_sessions(session_id) ON DELETE CASCADE
     );
 
+    -- Task 7: Agentic orchestration workflow state persistence
+    CREATE TABLE IF NOT EXISTS assessments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      patient_id TEXT,
+      status TEXT NOT NULL DEFAULT 'CREATED',
+      input_types TEXT DEFAULT '[]',
+      current_step TEXT,
+      completed_steps TEXT DEFAULT '[]',
+      failed_steps TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES doctors(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_tool_executions (
+      id TEXT PRIMARY KEY,
+      assessment_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      input_valid INTEGER DEFAULT 0,
+      output_summary TEXT DEFAULT '{}',
+      error_message TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      duration_ms INTEGER,
+      retry_count INTEGER DEFAULT 0,
+      FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_risk (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      patient_id TEXT,
+      disease TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      risk_category TEXT DEFAULT 'UNAVAILABLE',
+      emergency_alert TEXT DEFAULT '{}',
+      abnormal_findings TEXT DEFAULT '[]',
+      rules_applied TEXT DEFAULT '[]',
+      evidence_references TEXT DEFAULT '[]',
+      limitations TEXT DEFAULT '[]',
+      ml_probability REAL,
+      ml_probability_used_for_risk INTEGER DEFAULT 0,
+      duration_ms INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES doctors(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_assessments_status ON assessments(status);
+    CREATE INDEX IF NOT EXISTS idx_assessment_tool_executions_assessment ON assessment_tool_executions(assessment_id);
+
     CREATE INDEX IF NOT EXISTS idx_medicines_generic ON medicines(generic_name);
     CREATE INDEX IF NOT EXISTS idx_medicines_brand ON medicines(brand_name);
     CREATE INDEX IF NOT EXISTS idx_diseases_slug ON diseases(slug);
@@ -279,6 +409,18 @@ function initTables() {
   try { db.exec("ALTER TABLE lab_results ADD COLUMN normalized_name TEXT;"); } catch {}
   try { db.exec("ALTER TABLE lab_results ADD COLUMN quality TEXT DEFAULT 'VALID';"); } catch {}
   try { db.exec("ALTER TABLE reports ADD COLUMN demographics TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE doctors ADD COLUMN password_hash TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE doctors ADD COLUMN role TEXT DEFAULT 'doctor';"); } catch {}
+  try { db.exec("ALTER TABLE patients ADD COLUMN created_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN created_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'UPLOADED';"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN verification_timestamp TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE reports ADD COLUMN verified_by TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN original_value REAL;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validation_flags TEXT DEFAULT '[]';"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN source_location TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validated_at TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE lab_results ADD COLUMN validated_by TEXT;"); } catch {}
 }
 
 function seedData() {
@@ -299,6 +441,27 @@ function seedData() {
       VALUES (@id, @name, @age, @gender, @blood_type, @weight, @height, @allergies, @history, @current_medications)
     `);
     for (const p of patients) stmt.run(p);
+  }
+
+  // Seed default doctor account with hashed password
+  const doctorCount = db.prepare('SELECT COUNT(*) as c FROM doctors').get().c;
+  if (doctorCount === 0) {
+    const defaultPasswordHash = hashPasswordSync('MediAgent@2026!Secure');
+    db.prepare(`
+      INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
+      VALUES (@id, @name, @email, @password_hash, @specialty, @license_number, @role, datetime('now'))
+    `).run({
+      id: 'DOC-001',
+      name: 'Dr. Pavan Kumar',
+      email: 'pavan@mediagent.com',
+      password_hash: defaultPasswordHash,
+      specialty: 'General Medicine',
+      license_number: 'MG-2026-001',
+      role: 'doctor',
+    });
+  } else {
+    // Migrate any existing plaintext passwords to bcrypt hashes
+    migratePlaintextPasswords();
   }
 
   // Ensure default demo report REP-9001 exists with 20 generic lab parameters
@@ -450,13 +613,15 @@ function seedData() {
 function saveReportRecord(reportObj) {
   const database = getDb();
   const stmt = database.prepare(`
-    INSERT INTO reports (id, patient_id, patient_name, original_filename, stored_filename, file_type, file_size, raw_ocr_text, ocr_confidence, chief_complaint, symptoms, history, status, demographics, created_at)
-    VALUES (@id, @patient_id, @patient_name, @original_filename, @stored_filename, @file_type, @file_size, @raw_ocr_text, @ocr_confidence, @chief_complaint, @symptoms, @history, @status, @demographics, datetime('now'))
+    INSERT INTO reports (id, patient_id, patient_name, original_filename, stored_filename, file_type, file_size, raw_ocr_text, ocr_confidence, chief_complaint, symptoms, history, status, verification_timestamp, verified_by, demographics, created_at)
+    VALUES (@id, @patient_id, @patient_name, @original_filename, @stored_filename, @file_type, @file_size, @raw_ocr_text, @ocr_confidence, @chief_complaint, @symptoms, @history, @status, @verification_timestamp, @verified_by, @demographics, datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       raw_ocr_text = excluded.raw_ocr_text,
       ocr_confidence = excluded.ocr_confidence,
       demographics = excluded.demographics,
-      status = excluded.status
+      status = excluded.status,
+      verification_timestamp = excluded.verification_timestamp,
+      verified_by = excluded.verified_by
   `);
 
   const demoStr = reportObj.demographics
@@ -476,7 +641,9 @@ function saveReportRecord(reportObj) {
     chief_complaint: reportObj.chief_complaint || reportObj.chiefComplaint || '',
     symptoms: Array.isArray(reportObj.symptoms) ? reportObj.symptoms.join(', ') : (reportObj.symptoms || ''),
     history: reportObj.history || '',
-    status: reportObj.status || 'analyzed',
+    status: reportObj.status || 'UPLOADED',
+    verification_timestamp: reportObj.verification_timestamp || null,
+    verified_by: reportObj.verified_by || null,
     demographics: demoStr
   });
 }
@@ -486,8 +653,8 @@ function saveLabResultsRecord(reportId, labResults) {
   database.prepare('DELETE FROM lab_results WHERE report_id = ?').run(reportId);
 
   const insertStmt = database.prepare(`
-    INSERT INTO lab_results (id, report_id, test_name, raw_name, normalized_name, value, units, reference_range, status, quality, confidence, validated_by_user)
-    VALUES (@id, @report_id, @test_name, @raw_name, @normalized_name, @value, @units, @reference_range, @status, @quality, @confidence, @validated_by_user)
+    INSERT INTO lab_results (id, report_id, test_name, raw_name, normalized_name, value, original_value, units, reference_range, status, quality, validation_flags, confidence, source_location, validated_by_user, validated_at, validated_by)
+    VALUES (@id, @report_id, @test_name, @raw_name, @normalized_name, @value, @original_value, @units, @reference_range, @status, @quality, @validation_flags, @confidence, @source_location, @validated_by_user, @validated_at, @validated_by)
   `);
 
   const tx = database.transaction((items) => {
@@ -514,6 +681,13 @@ function saveLabResultsRecord(reportId, labResults) {
         unitsStr = JSON.stringify(item.units);
       }
 
+      let validationFlagsStr = '[]';
+      if (item.validationFlags && Array.isArray(item.validationFlags)) {
+        validationFlagsStr = JSON.stringify(item.validationFlags);
+      } else if (item.validation_flags && typeof item.validation_flags === 'string') {
+        validationFlagsStr = item.validation_flags;
+      }
+
       insertStmt.run({
         id: uniqueId,
         report_id: reportId,
@@ -521,12 +695,17 @@ function saveLabResultsRecord(reportId, labResults) {
         raw_name: item.rawName || item.raw_name || item.testName || 'Lab Test',
         normalized_name: item.normalizedName || item.normalized_name || '',
         value: item.value,
+        original_value: item.originalValue !== undefined ? item.originalValue : item.value,
         units: unitsStr,
         reference_range: refRangeStr,
         status: item.status || 'normal',
         quality: item.quality || 'VALID',
+        validation_flags: validationFlagsStr,
         confidence: item.confidence !== undefined ? item.confidence : 95.0,
-        validated_by_user: item.validatedByUser ? 1 : 0
+        source_location: item.sourceLocation || item.source_location || null,
+        validated_by_user: item.validatedByUser ? 1 : 0,
+        validated_at: item.validatedAt || null,
+        validated_by: item.validatedBy || null
       });
     }
   });
@@ -574,6 +753,20 @@ function savePredictionRecord(pred) {
     risk: JSON.stringify(pred.risk || {}),
     uncertainty: JSON.stringify(pred.uncertainty || {})
   });
+}
+
+/**
+ * Invalidate (delete) any existing prediction record for a report.
+ * Called when lab results are modified after verification, so that
+ * stale predictions cannot be served for changed clinical values.
+ */
+function invalidatePredictionForReport(reportId) {
+  const database = getDb();
+  try {
+    database.prepare('DELETE FROM predictions WHERE report_id = ?').run(reportId);
+  } catch (err) {
+    console.warn('[DB] Failed to invalidate prediction for report', reportId, ':', err.message);
+  }
 }
 
 function saveRagRecord(ragObj) {
@@ -643,13 +836,18 @@ function getReportRecord(reportId) {
     rawName: r.raw_name || r.test_name,
     normalizedName: r.normalized_name || '',
     value: r.value,
+    originalValue: r.original_value,
     units: r.units,
     unit: r.units,
     referenceRange: r.reference_range,
     status: r.status,
     quality: r.quality || 'VALID',
+    validationFlags: r.validation_flags ? JSON.parse(r.validation_flags) : [],
     confidence: r.confidence,
-    validatedByUser: Boolean(r.validated_by_user)
+    sourceLocation: r.source_location,
+    validatedByUser: Boolean(r.validated_by_user),
+    validatedAt: r.validated_at,
+    validatedBy: r.validated_by
   }));
 
   const metaText = [
@@ -691,6 +889,7 @@ function getReportRecord(reportId) {
     status: rep.status,
     disease: detectedDisease,
     uploadDate: rep.created_at,
+    createdBy: rep.created_by,
     labResults
   };
 }
@@ -785,12 +984,18 @@ function getAllReportRecords() {
       rawName: r.raw_name || r.test_name,
       normalizedName: r.normalized_name || '',
       value: r.value,
+      originalValue: r.original_value,
       units: r.units,
       unit: r.units,
       referenceRange: r.reference_range,
       status: r.status,
       quality: r.quality || 'VALID',
-      confidence: r.confidence
+      validationFlags: r.validation_flags ? JSON.parse(r.validation_flags) : [],
+      confidence: r.confidence,
+      sourceLocation: r.source_location,
+      validatedByUser: Boolean(r.validated_by_user),
+      validatedAt: r.validated_at,
+      validatedBy: r.validated_by
     }));
 
     const metaText = [
@@ -822,6 +1027,7 @@ function getAllReportRecords() {
       uploadDate: rep.created_at,
       status: rep.status,
       ocrConfidence: rep.ocr_confidence,
+      createdBy: rep.created_by,
       labResults
     };
   });
@@ -1247,8 +1453,360 @@ function deleteHealthChatSession(sessionId) {
   return { success: info.changes > 0, sessionId };
 }
 
+/**
+ * Look up a doctor by email (case-insensitive).
+ * @param {string} email
+ * @returns {Object|null} doctor record with password_hash included
+ */
+function getDoctorByEmail(email) {
+  const database = getDb();
+  return database.prepare('SELECT * FROM doctors WHERE LOWER(email) = LOWER(?)').get(email.trim());
+}
+
+/**
+ * Create a new doctor account with a hashed password.
+ * @param {Object} data - { id, name, email, password, specialty, licenseNumber, role }
+ * @returns {Object} created doctor (without password fields)
+ */
+async function createDoctor(data) {
+  const database = getDb();
+  const passwordHash = await hashPassword(data.password);
+
+  database.prepare(`
+    INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
+    VALUES (@id, @name, @email, @password_hash, @specialty, @license_number, @role, datetime('now'))
+  `).run({
+    id: data.id,
+    name: data.name,
+    email: data.email,
+    password_hash: passwordHash,
+    specialty: data.specialty,
+    license_number: data.licenseNumber,
+    role: data.role || 'doctor',
+  });
+
+  const row = database.prepare('SELECT id, name, email, specialty, license_number, role, created_at FROM doctors WHERE email = ?').get(data.email);
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    specialty: row.specialty,
+    licenseNumber: row.license_number,
+    role: row.role,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Delete a doctor's session tokens (logout).
+ * @param {string} token - JWT token to invalidate (note: JWTs are stateless;
+ *   client-side removal is the primary logout mechanism. This is a no-op
+ *   kept for interface compatibility.)
+ */
+function revokeToken() {
+  // JWTs are stateless; logout is handled client-side by removing the token.
+  // A server-side token blacklist could be added here in future if needed.
+  return { success: true };
+}
+
+// ============================================================================
+// TASK 7: AGENTIC ORCHESTRATION WORKFLOW PERSISTENCE
+// ============================================================================
+
+const VALID_ASSESSMENT_STATES = new Set([
+  'CREATED', 'INPUT_RECEIVED', 'PROCESSING', 'AWAITING_VERIFICATION',
+  'VERIFIED', 'ANALYZING', 'EVIDENCE_RETRIEVAL', 'COMPLETED',
+  'PARTIALLY_COMPLETED', 'FAILED'
+]);
+
+function isValidAssessmentState(status) {
+  return VALID_ASSESSMENT_STATES.has(status);
+}
+
+/**
+ * Create a new assessment record.
+ * @param {Object} data - { id, user_id, patient_id, status, input_types }
+ * @returns {Object} created assessment
+ */
+function saveAssessment(data) {
+  const database = getDb();
+  const status = isValidAssessmentState(data.status) ? data.status : 'CREATED';
+  const stmt = database.prepare(`
+    INSERT INTO assessments (id, user_id, patient_id, status, input_types, current_step, completed_steps, failed_steps, created_at, updated_at)
+    VALUES (@id, @user_id, @patient_id, @status, @input_types, @current_step, @completed_steps, @failed_steps, datetime('now'), datetime('now'))
+  `);
+  stmt.run({
+    id: data.id,
+    user_id: data.user_id,
+    patient_id: data.patient_id || null,
+    status,
+    input_types: typeof data.input_types === 'string' ? data.input_types : JSON.stringify(data.input_types || []),
+    current_step: data.current_step || null,
+    completed_steps: typeof data.completed_steps === 'string' ? data.completed_steps : JSON.stringify(data.completed_steps || []),
+    failed_steps: typeof data.failed_steps === 'string' ? data.failed_steps : JSON.stringify(data.failed_steps || []),
+  });
+  return getAssessment(data.id);
+}
+
+/**
+ * Retrieve an assessment by ID with its tool executions.
+ * @param {string} id
+ * @returns {Object|null}
+ */
+function getAssessment(id) {
+  const database = getDb();
+  const row = database.prepare('SELECT * FROM assessments WHERE id = ?').get(id);
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    status: row.status,
+    inputTypes: JSON.parse(row.input_types || '[]'),
+    currentStep: row.current_step,
+    completedSteps: JSON.parse(row.completed_steps || '[]'),
+    failedSteps: JSON.parse(row.failed_steps || '[]'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+  };
+}
+
+/**
+ * List assessments for a user (doctor), newest first.
+ * @param {string} userId
+ * @returns {Array}
+ */
+function getAssessmentsByUser(userId) {
+  const database = getDb();
+  const rows = database.prepare(
+    'SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC'
+  ).all(userId);
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    status: row.status,
+    inputTypes: JSON.parse(row.input_types || '[]'),
+    currentStep: row.current_step,
+    completedSteps: JSON.parse(row.completed_steps || '[]'),
+    failedSteps: JSON.parse(row.failed_steps || '[]'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+  }));
+}
+
+/**
+ * Update an assessment's status and step tracking fields.
+ * @param {string} id
+ * @param {Object} updates - { status?, current_step?, completed_steps?, failed_steps?, completed_at? }
+ * @returns {Object|null} updated assessment
+ */
+function updateAssessment(id, updates) {
+  const database = getDb();
+  const fields = [];
+  const params = {};
+
+  if (updates.status !== undefined) {
+    if (!isValidAssessmentState(updates.status)) {
+      throw new Error(`Invalid assessment status: ${updates.status}`);
+    }
+    fields.push('status = @status');
+    params.status = updates.status;
+  }
+  if (updates.current_step !== undefined) {
+    fields.push('current_step = @current_step');
+    params.current_step = updates.current_step;
+  }
+  if (updates.completed_steps !== undefined) {
+    fields.push('completed_steps = @completed_steps');
+    params.completed_steps = typeof updates.completed_steps === 'string'
+      ? updates.completed_steps : JSON.stringify(updates.completed_steps);
+  }
+  if (updates.failed_steps !== undefined) {
+    fields.push('failed_steps = @failed_steps');
+    params.failed_steps = typeof updates.failed_steps === 'string'
+      ? updates.failed_steps : JSON.stringify(updates.failed_steps);
+  }
+  if (updates.completed_at !== undefined) {
+    fields.push('completed_at = @completed_at');
+    params.completed_at = updates.completed_at;
+  }
+  fields.push('updated_at = datetime(\'now\')');
+
+  if (fields.length === 0) return getAssessment(id);
+
+  params.id = id;
+  const stmt = database.prepare(`
+    UPDATE assessments SET ${fields.join(', ')} WHERE id = @id
+  `);
+  stmt.run(params);
+  return getAssessment(id);
+}
+
+/**
+ * Record a single tool execution within an assessment.
+ * @param {Object} data - { id, assessment_id, tool_name, status, input_valid, output_summary, error_message, started_at, completed_at, duration_ms, retry_count }
+ * @returns {Object} created execution record
+ */
+function saveAssessmentToolExecution(data) {
+  const database = getDb();
+  const stmt = database.prepare(`
+    INSERT INTO assessment_tool_executions
+      (id, assessment_id, tool_name, status, input_valid, output_summary, error_message, started_at, completed_at, duration_ms, retry_count)
+    VALUES (@id, @assessment_id, @tool_name, @status, @input_valid, @output_summary, @error_message, @started_at, @completed_at, @duration_ms, @retry_count)
+  `);
+  stmt.run({
+    id: data.id || `exec-${uuidv4().slice(0, 8)}`,
+    assessment_id: data.assessment_id,
+    tool_name: data.tool_name,
+    status: data.status || 'PENDING',
+    input_valid: data.input_valid ? 1 : 0,
+    output_summary: typeof data.output_summary === 'string' ? data.output_summary : JSON.stringify(data.output_summary || {}),
+    error_message: data.error_message || null,
+    started_at: data.started_at || null,
+    completed_at: data.completed_at || null,
+    duration_ms: data.duration_ms || null,
+    retry_count: data.retry_count || 0,
+  });
+  return getAssessmentToolExecution(data.id || `exec-${uuidv4().slice(0, 8)}`);
+}
+
+/**
+ * Retrieve tool executions for an assessment, ordered by started_at.
+ * @param {string} assessmentId
+ * @returns {Array}
+ */
+function getAssessmentToolExecutions(assessmentId) {
+  const database = getDb();
+  const rows = database.prepare(
+    'SELECT * FROM assessment_tool_executions WHERE assessment_id = ? ORDER BY started_at ASC, id ASC'
+  ).all(assessmentId);
+  return rows.map(row => ({
+    id: row.id,
+    assessmentId: row.assessment_id,
+    toolName: row.tool_name,
+    status: row.status,
+    inputValid: Boolean(row.input_valid),
+    outputSummary: JSON.parse(row.output_summary || '{}'),
+    errorMessage: row.error_message,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    durationMs: row.duration_ms,
+    retryCount: row.retry_count,
+  }));
+}
+
+/**
+ * Retrieve an assessment together with its tool executions.
+ * @param {string} id
+ * @returns {Object|null}
+ */
+function getAssessmentWithExecutions(id) {
+  const assessment = getAssessment(id);
+  if (!assessment) return null;
+  assessment.toolExecutions = getAssessmentToolExecutions(id);
+  return assessment;
+}
+
+/**
+ * Task 8: Save a clinical risk assessment to the database.
+ */
+function saveAssessmentRisk(data) {
+  const stmt = db.prepare(`
+    INSERT INTO assessment_risk (
+      id, user_id, patient_id, disease, status, risk_category,
+      emergency_alert, abnormal_findings, rules_applied,
+      evidence_references, limitations, ml_probability,
+      ml_probability_used_for_risk, duration_ms, created_at
+    ) VALUES (
+      @id, @user_id, @patient_id, @disease, @status, @risk_category,
+      @emergency_alert, @abnormal_findings, @rules_applied,
+      @evidence_references, @limitations, @ml_probability,
+      @ml_probability_used_for_risk, @duration_ms, @created_at
+    )
+  `);
+  const info = stmt.run({
+    id: data.id,
+    user_id: data.user_id,
+    patient_id: data.patient_id || null,
+    disease: data.disease || null,
+    status: data.status || 'PENDING',
+    risk_category: data.riskCategory || 'UNAVAILABLE',
+    emergency_alert: data.emergencyAlert || '{}',
+    abnormal_findings: data.abnormalFindings || '[]',
+    rules_applied: data.rulesApplied || '[]',
+    evidence_references: data.evidenceReferences || '[]',
+    limitations: data.limitations || '[]',
+    ml_probability: data.mlProbability || null,
+    ml_probability_used_for_risk: data.mlProbabilityUsedForRisk === false ? 0 : 1,
+    duration_ms: data.durationMs || null,
+    created_at: data.createdAt || new Date().toISOString()
+  });
+  return { id: data.id, changes: info.changes };
+}
+
+/**
+ * Task 8: Get a single risk assessment by ID.
+ */
+function getAssessmentRisk(id) {
+  const row = db.prepare('SELECT * FROM assessment_risk WHERE id = @id').get({ id });
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    disease: row.disease,
+    status: row.status,
+    riskCategory: row.risk_category,
+    emergencyAlert: row.emergency_alert,
+    abnormalFindings: row.abnormal_findings,
+    rulesApplied: row.rules_applied,
+    evidenceReferences: row.evidence_references,
+    limitations: row.limitations,
+    mlProbability: row.ml_probability,
+    mlProbabilityUsedForRisk: Boolean(row.ml_probability_used_for_risk),
+    durationMs: row.duration_ms,
+    createdAt: row.created_at
+  };
+}
+
+/**
+ * Task 8: Get all risk assessments for a user.
+ */
+function getAssessmentRisksByUser(userId) {
+  const rows = db.prepare(
+    'SELECT * FROM assessment_risk WHERE user_id = @user_id ORDER BY created_at DESC'
+  ).all({ user_id: userId });
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    patientId: row.patient_id,
+    disease: row.disease,
+    status: row.status,
+    riskCategory: row.risk_category,
+    emergencyAlert: row.emergency_alert,
+    abnormalFindings: row.abnormal_findings,
+    rulesApplied: row.rules_applied,
+    evidenceReferences: row.evidence_references,
+    limitations: row.limitations,
+    mlProbability: row.ml_probability,
+    mlProbabilityUsedForRisk: Boolean(row.ml_probability_used_for_risk),
+    durationMs: row.duration_ms,
+    createdAt: row.created_at
+  }));
+}
+
 module.exports = {
   getDb,
+  hashPassword,
+  verifyPassword,
+  hashPasswordSync,
+  verifyPasswordSync,
+  getDoctorByEmail,
+  createDoctor,
+  revokeToken,
   saveReportRecord,
   saveLabResultsRecord,
   savePredictionRecord,
@@ -1270,5 +1828,19 @@ module.exports = {
   saveHealthChatMessage,
   getHealthChatHistory,
   getAllHealthChatSessions,
-  deleteHealthChatSession
+  deleteHealthChatSession,
+  invalidatePredictionForReport,
+  // Task 7: Agentic orchestration workflow persistence
+  saveAssessment,
+  getAssessment,
+  getAssessmentsByUser,
+  updateAssessment,
+  saveAssessmentToolExecution,
+  getAssessmentToolExecutions,
+  getAssessmentWithExecutions,
+  isValidAssessmentState,
+  // Task 8: Clinical risk assessment persistence
+  saveAssessmentRisk,
+  getAssessmentRisk,
+  getAssessmentRisksByUser
 };

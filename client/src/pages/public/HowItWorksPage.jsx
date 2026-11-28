@@ -6,13 +6,13 @@ export default function HowItWorksPage({ onNavigate, onEnterApp }) {
   const stages = [
     { num: '01', title: 'Laboratory Report Upload', desc: 'Upload JPG, PNG, or PDF lab report documents.' },
     { num: '02', title: 'Computer Vision & Preprocessing', desc: 'Noise reduction, thresholding, and contour detection for document orientation.' },
-    { num: '03', title: 'OCR Text & Table Extraction', desc: 'PaddleOCR / Tesseract parses tabular test data with bounding box coordinates.' },
+    { num: '03', title: 'OCR Text & Table Extraction', desc: 'Tesseract.js parses tabular test data with bounding box coordinates.' },
     { num: '04', title: 'Clinical Data Extraction', desc: 'Normalizes test names, numeric values, measurement units, and reference ranges.' },
     { num: '05', title: 'Boundary Validation', desc: 'Validates values against clinical age/gender ranges and flags low OCR confidence.' },
     { num: '06', title: 'Patient Profile Synchronization', desc: 'Integrates extracted lab data with historical medical records and current medications.' },
-    { num: '07', title: 'ML Disease Risk Prediction', desc: 'Calibrated XGBoost models compute probabilities for top 3 differential diagnoses.' },
+    { num: '07', title: 'ML Disease Risk Prediction', desc: 'Logistic regression models compute probabilities for differential diagnoses.' },
     { num: '08', title: 'XAI (SHAP) Attribution', desc: 'Computes feature importance values showing exact parameters driving prediction.' },
-    { num: '09', title: 'Medical Evidence RAG Retrieval', desc: 'FAISS vector search retrieves relevant ADA / ESC clinical practice guidelines.' },
+    { num: '09', title: 'Medical Evidence RAG Retrieval', desc: 'TF-IDF hybrid search retrieves ADA / ESC clinical practice guidelines.' },
     { num: '10', title: 'Risk & Uncertainty Engine', desc: 'Quantifies data completeness, model uncertainty, and overall patient risk level.' },
     { num: '11', title: 'Doctor Review & Decision Recording', desc: 'Generates structured clinical report for attending physician review (Accept/Modify/Reject).' }
   ];

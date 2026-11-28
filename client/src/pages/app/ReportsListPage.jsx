@@ -5,12 +5,23 @@ import { reportService } from '../../services/api';
 
 export default function ReportsListPage({ onNavigate, onSelectReport }) {
   const [reports, setReports] = useState([]);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     async function loadReports() {
-      const data = await reportService.list();
-      if (mounted) setReports(data || []);
+      try {
+        const data = await reportService.list();
+        if (mounted) {
+          setReports(data || []);
+          setErrorMsg(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setErrorMsg(err.message || 'Unable to connect to the MediAgent server. Please try again.');
+          setReports([]);
+        }
+      }
     }
     loadReports();
     return () => { mounted = false; };
@@ -24,6 +35,12 @@ export default function ReportsListPage({ onNavigate, onSelectReport }) {
   return (
     <div className="fade-in">
       <DemoBanner />
+      {errorMsg && (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 20, color: '#fca5a5' }}>
+          <strong>Unable to load reports:</strong> {errorMsg}
+        </div>
+      )}
+
       <div className="page-header" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>📋 Laboratory Reports Directory</h2>

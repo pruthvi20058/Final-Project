@@ -1,0 +1,106 @@
+[
+  {
+    "id": "who-2026-typhoid",
+    "title": "Typhoid — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-05",
+    "url": "https://www.who.int/health-topics/typhoid",
+    "documentType": "Fact Sheet",
+    "topic": "typhoid_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "typhoid",
+    "chunks": [
+      {
+        "chunkId": "who-2026-typhoid-chunk-0",
+        "chunkIndex": 0,
+        "text": "Typhoid fever is a systemic infection caused by Salmonella Typhi bacteria, usually spread through contaminated food and water. It remains a serious public-health problem in many parts of the world.",
+        "startChar": 0,
+        "endChar": 191,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "who-2026-typhoid-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms include prolonged high fever, fatigue, headache, nausea, abdominal pain, and constipation or diarrhoea. Some patients develop a rash. Severe cases can lead to intestinal perforation or bleeding.",
+        "startChar": 191,
+        "endChar": 414,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "who-2026-typhoid-chunk-2",
+        "chunkIndex": 2,
+        "text": "Typhoid fever is treated with antibiotics. Resistance to multiple antibiotics is increasing, making treatment more complicated. Vaccines and safe water, sanitation, and hygiene are key to prevention.",
+        "startChar": 414,
+        "endChar": 612,
+        "page": null,
+        "section": "Treatment and prevention"
+      }
+    ],
+    "metadata": {
+      "sourceId": "who-2026-typhoid",
+      "title": "Typhoid — WHO Fact Sheet",
+      "organization": "World Health Organization",
+      "disease": "typhoid",
+      "topic": "typhoid_overview",
+      "documentType": "Fact Sheet",
+      "publicationDate": "2026-01-05",
+      "url": "https://www.who.int/health-topics/typhoid",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "cdc-2026-typhoid",
+    "title": "Typhoid Fever — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-02-01",
+    "url": "https://www.cdc.gov/typhoid-fever/",
+    "documentType": "Government Public Health Page",
+    "topic": "typhoid_diagnosis_prevention",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "typhoid",
+    "chunks": [
+      {
+        "chunkId": "cdc-2026-typhoid-chunk-0",
+        "chunkIndex": 0,
+        "text": "Typhoid fever and paratyphoid fever are life-threatening illnesses caused by Salmonella serotype Typhi and Salmonella serotype Paratyphi. Most people in the United States get typhoid after traveling abroad.",
+        "startChar": 0,
+        "endChar": 211,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "cdc-2026-typhoid-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms of typhoid fever include a high fever that can reach 103–104°F (39–40°C), weakness, stomach pain, headache, diarrhea or constipation, cough, and loss of appetite.",
+        "startChar": 211,
+        "endChar": 414,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "cdc-2026-typhoid-chunk-2",
+        "chunkIndex": 2,
+        "text": "Typhoid fever is confirmed by testing blood or stool for Salmonella Typhi. Antibiotic treatment is recommended, and patients should take all prescribed antibiotics even if they feel better. Handwashing and safe food and water practices prevent spread.",
+        "startChar": 414,
+        "endChar": 644,
+        "page": null,
+        "section": "Diagnosis and treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "cdc-2026-typhoid",
+      "title": "Typhoid Fever — CDC Disease Information",
+      "organization": "Centers for Disease Control and Prevention",
+      "disease": "typhoid",
+      "topic": "typhoid_diagnosis_prevention",
+      "documentType": "Government Public Health Page",
+      "publicationDate": "2026-02-01",
+      "url": "https://www.cdc.gov/typhoid-fever/",
+      "version": "2026.1"
+    }
+  }
+]

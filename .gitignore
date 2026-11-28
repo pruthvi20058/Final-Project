@@ -39,3 +39,9 @@ generate_report_docs.py
 *.zip
 *.tar.gz
 
+# PII / Fabricated clinical data — removed from tracking (privacy)
+mediagent_patient_records.csv
+mediagent_clinical_conditions.csv
+mediagent_drug_interactions.csv
+mediagent_full_dataset.json
+

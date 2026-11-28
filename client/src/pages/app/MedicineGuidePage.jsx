@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { healthCompanionService } from '../../services/api';
 
 const CATEGORIES = [
   'All',
@@ -35,16 +36,8 @@ export default function MedicineGuidePage({ onNavigate }) {
   const fetchMedicines = async (query = searchQuery) => {
     setIsLoading(true);
     try {
-      let url = `/api/health-companion/medicines?limit=100`;
-      if (query && query.trim()) url += `&query=${encodeURIComponent(query.trim())}`;
-      if (selectedCategory && selectedCategory !== 'All') {
-        url += `&category=${encodeURIComponent(selectedCategory)}`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.success) {
-        setMedicines(data.medicines || []);
-      }
+      const data = await healthCompanionService.getMedicines(query, selectedCategory);
+      setMedicines(data || []);
     } catch (err) {
       console.error('Fetch medicines error:', err);
     } finally {
@@ -69,13 +62,8 @@ export default function MedicineGuidePage({ onNavigate }) {
       const formData = new FormData();
       formData.append('image', file);
 
-      const res = await fetch('/api/health-companion/medicines/identify-image', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await healthCompanionService.identifyMedicineFromImage(file);
+      if (!data.success) {
         throw new Error(data.error || 'Failed to analyze medicine packaging image.');
       }
 

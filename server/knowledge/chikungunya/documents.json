@@ -1,0 +1,167 @@
+[
+  {
+    "id": "who-2026-chikungunya",
+    "title": "Chikungunya — WHO Fact Sheet",
+    "organization": "World Health Organization",
+    "publicationDate": "2026-01-10",
+    "url": "https://www.who.int/news-room/fact-sheets/detail/chikungunya",
+    "documentType": "Fact Sheet",
+    "topic": "chikungunya_overview",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "chikungunya",
+    "chunks": [
+      {
+        "chunkId": "who-2026-chikungunya-chunk-0",
+        "chunkIndex": 0,
+        "text": "Chikungunya is a viral disease transmitted to humans by infected Aedes mosquitoes. It causes fever and severe joint pain, which can be debilitating and may persist for months or years.",
+        "startChar": 0,
+        "endChar": 190,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "who-2026-chikungunya-chunk-1",
+        "chunkIndex": 1,
+        "text": "Symptoms include sudden onset of fever, severe joint pain (often in the hands and feet), muscle pain, headache, nausea, fatigue, and rash. Joint pain is often the most prominent feature and may last for weeks or months.",
+        "startChar": 190,
+        "endChar": 430,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "who-2026-chikungunya-chunk-2",
+        "chunkIndex": 2,
+        "text": "Most patients recover fully, but in some cases joint pain may persist for months or even years. Serious complications are uncommon, but older adults and people with chronic conditions are at higher risk of severe disease.",
+        "startChar": 430,
+        "endChar": 644,
+        "page": null,
+        "section": "Course and complications"
+      },
+      {
+        "chunkId": "who-2026-chikungunya-chunk-3",
+        "chunkIndex": 3,
+        "text": "There is no specific antiviral treatment for chikungunya. Treatment is aimed at relieving symptoms, including rest, fluids, and medicines such as paracetamol for fever and pain. Aspirin and NSAIDs should be avoided until dengue is excluded because of bleeding risk.",
+        "startChar": 644,
+        "endChar": 898,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "who-2026-chikungunya",
+      "title": "Chikungunya — WHO Fact Sheet",
+      "organization": "World Health Organization",
+      "disease": "chikungunya",
+      "topic": "chikungunya_overview",
+      "documentType": "Fact Sheet",
+      "publicationDate": "2026-01-10",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/chikungunya",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "cdc-2026-chikungunya",
+    "title": "Chikungunya Virus — CDC Disease Information",
+    "organization": "Centers for Disease Control and Prevention",
+    "publicationDate": "2026-03-15",
+    "url": "https://www.cdc.gov/chikungunya/",
+    "documentType": "Government Public Health Page",
+    "topic": "chikungunya_diagnosis_prevention",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "chikungunya",
+    "chunks": [
+      {
+        "chunkId": "cdc-2026-chikungunya-chunk-0",
+        "chunkIndex": 0,
+        "text": "Chikungunya virus is transmitted to people by mosquitoes. The most common symptoms are fever and joint pain. Other symptoms may include headache, muscle pain, joint swelling, or rash.",
+        "startChar": 0,
+        "endChar": 189,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "cdc-2026-chikungunya-chunk-1",
+        "chunkIndex": 1,
+        "text": "Outbreaks have occurred in Africa, the Americas, Asia, Europe, and the Indian and Pacific Oceans. There is no vaccine to prevent or medicine to treat chikungunya virus infection.",
+        "startChar": 189,
+        "endChar": 376,
+        "page": null,
+        "section": "Geography and prevention"
+      },
+      {
+        "chunkId": "cdc-2026-chikungunya-chunk-2",
+        "chunkIndex": 2,
+        "text": "Diagnosis is based on symptoms, exposure history, and laboratory testing. Blood tests can detect chikungunya virus or antibodies. Testing should also consider dengue and Zika because symptoms overlap and the same mosquitoes spread them.",
+        "startChar": 376,
+        "endChar": 595,
+        "page": null,
+        "section": "Diagnosis"
+      }
+    ],
+    "metadata": {
+      "sourceId": "cdc-2026-chikungunya",
+      "title": "Chikungunya Virus — CDC Disease Information",
+      "organization": "Centers for Disease Control and Prevention",
+      "disease": "chikungunya",
+      "topic": "chikungunya_diagnosis_prevention",
+      "documentType": "Government Public Health Page",
+      "publicationDate": "2026-03-15",
+      "url": "https://www.cdc.gov/chikungunya/",
+      "version": "2026.1"
+    }
+  },
+  {
+    "id": "nhs-2026-chikungunya",
+    "title": "Chikungunya — NHS",
+    "organization": "National Health Service (UK)",
+    "publicationDate": "2026-02-20",
+    "url": "https://www.nhs.uk/conditions/chikungunya/",
+    "documentType": "Clinical Topic Page",
+    "topic": "chikungunya_symptoms_treatment",
+    "version": "2026.1",
+    "retrievedAt": "2026-11-25",
+    "disease": "chikungunya",
+    "chunks": [
+      {
+        "chunkId": "nhs-2026-chikungunya-chunk-0",
+        "chunkIndex": 0,
+        "text": "Chikungunya is an illness caused by a virus that's spread by mosquitoes. It's found in parts of Africa, Asia, and the Indian subcontinent.",
+        "startChar": 0,
+        "endChar": 153,
+        "page": null,
+        "section": "Overview"
+      },
+      {
+        "chunkId": "nhs-2026-chikungunya-chunk-1",
+        "chunkIndex": 1,
+        "text": "The main symptoms are a high temperature, severe joint pain, joint swelling, a rash, headache, muscle pain, and feeling sick. Symptoms usually start 3 to 7 days after being bitten by an infected mosquito.",
+        "startChar": 153,
+        "endChar": 384,
+        "page": null,
+        "section": "Symptoms"
+      },
+      {
+        "chunkId": "nhs-2026-chikungunya-chunk-2",
+        "chunkIndex": 2,
+        "text": "There's no specific treatment for chikungunya. Treatment aims to ease symptoms while the immune system clears the infection. Paracetamol can be taken for fever or pain; ibuprofen should be avoided until dengue is ruled out.",
+        "startChar": 384,
+        "endChar": 612,
+        "page": null,
+        "section": "Treatment"
+      }
+    ],
+    "metadata": {
+      "sourceId": "nhs-2026-chikungunya",
+      "title": "Chikungunya — NHS",
+      "organization": "National Health Service (UK)",
+      "disease": "chikungunya",
+      "topic": "chikungunya_symptoms_treatment",
+      "documentType": "Clinical Topic Page",
+      "publicationDate": "2026-02-20",
+      "url": "https://www.nhs.uk/conditions/chikungunya/",
+      "version": "2026.1"
+    }
+  }
+]

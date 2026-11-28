@@ -4,6 +4,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggle, docto
   const mainNav = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     { id: 'multilingual', icon: '🎙️', label: 'Voice & Multilingual AI', badge: '10 LANG' },
+    { id: 'agent-workflow', icon: '🤖', label: 'Agentic Workflow', badge: 'TASK 7' },
     { id: 'patients', icon: '🏥', label: 'Patients' },
     { id: 'reports', icon: '📋', label: 'Reports List' },
     { id: 'upload', icon: '📤', label: 'Upload Report', badge: 'NEW' },

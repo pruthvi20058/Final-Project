@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import DemoBanner from '../../components/DemoBanner';
 
 export default function SettingsPage() {
-  const [ocrEngine, setOcrEngine] = useState('PaddleOCR v2.6');
+  const [ocrEngine, setOcrEngine] = useState('Tesseract.js v7');
   const [confidenceThreshold, setConfidenceThreshold] = useState(85);
   const [autoAbstain, setAutoAbstain] = useState(true);
 
@@ -19,8 +19,7 @@ export default function SettingsPage() {
         <div className="form-group" style={{ marginBottom: 16 }}>
           <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>OCR Processing Engine</label>
           <select className="form-select" value={ocrEngine} onChange={e => setOcrEngine(e.target.value)}>
-            <option value="PaddleOCR v2.6">PaddleOCR v2.6 (High Accuracy Multilingual)</option>
-            <option value="Tesseract v5.3">Tesseract OCR v5.3 (Fast Local Processing)</option>
+            <option value="Tesseract.js v7">Tesseract.js v7 (Browser-based OCR)</option>
           </select>
         </div>
 

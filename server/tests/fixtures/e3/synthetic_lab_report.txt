@@ -1,0 +1,73 @@
+SYNTHETIC DE-IDENTIFIED LABORATORY REPORT — E3 BENCHMARK FIXTURE
+===============================================================
+This is a SYNTHETIC, de-identified document created solely for software
+testing. It contains no real patient data. Do not use for clinical purposes.
+
+Patient ID: [SYNTHETIC-001]
+Report Date: 2026-01-15
+Collected: 2026-01-14 08:00
+Age: 52 Years
+Sex: Female
+
+SECTION: DIABETES & METABOLIC
+Fasting Blood Sugar: 108 mg/dL
+HbA1c: 6.2 %
+Random Blood Glucose: 142 mg/dL
+2-Hour Serum Insulin: 14 uU/mL
+
+SECTION: VITALS & BODY COMPOSITION
+Diastolic Blood Pressure: 78 mmHg
+Systolic Blood Pressure: 118 mmHg
+Body Mass Index: 26.4 kg/m2
+Triceps Skin Fold Thickness: 22 mm
+Diabetes Pedigree Function: 0.47
+Pregnancies: 2
+
+SECTION: HEMATOLOGY
+Hemoglobin: 13.2 g/dL
+Hematocrit: 40.1 %
+White Blood Cell Count: 6.2 thousand/uL
+Red Blood Cell Count: 4.5 million/uL
+Platelet Count: 240 lakhs/uL
+MCV: 88.5 fL
+MCH: 29.3 pg
+MCHC: 32.9 g/dL
+RDW: 13.4 %
+
+SECTION: LIVER FUNCTION
+Alanine Aminotransferase (ALT): 28 U/L
+Aspartate Aminotransferase (AST): 22 U/L
+Alkaline Phosphatase (ALP): 76 U/L
+Total Bilirubin: 0.9 mg/dL
+Direct Bilirubin: 0.3 mg/dL
+Albumin: 4.1 g/dL
+Total Protein: 7.2 g/dL
+
+SECTION: KIDNEY FUNCTION
+Serum Creatinine: 0.8 mg/dL
+Blood Urea Nitrogen: 14 mg/dL
+Estimated Glomerular Filtration Rate: 92 mL/min
+Uric Acid: 5.1 mg/dL
+
+SECTION: LIPID PROFILE
+Total Cholesterol: 195 mg/dL
+HDL Cholesterol: 52 mg/dL
+LDL Cholesterol: 118 mg/dL
+Triglycerides: 130 mg/dL
+
+SECTION: ELECTROLYTES
+Sodium: 140 mEq/L
+Potassium: 4.2 mEq/L
+Chloride: 103 mEq/L
+Calcium: 9.4 mg/dL
+
+SECTION: THYROID
+Thyroid Stimulating Hormone: 2.8 uIU/mL
+
+SECTION: QUALITATIVE / INFECTIOUS
+Dengue NS1 Antigen: Non-reactive
+Dengue IgM Antibody: Non-reactive
+Malaria Antigen: Non-reactive
+Widal Test: Negative
+
+END OF SYNTHETIC REPORT

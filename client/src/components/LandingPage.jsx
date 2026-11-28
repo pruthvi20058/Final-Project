@@ -62,7 +62,7 @@ export default function LandingPage({ onNavigate, onEnterApp }) {
               lineHeight: 1.65
             }}
           >
-            Automated Vision OCR, calibrated XGBoost diagnostic risk scoring, vector RAG clinical guideline retrieval, SHAP feature explainability, and doctor-in-the-loop governance.
+            Automated Vision OCR, logistic regression diagnostic risk scoring, TF-IDF RAG clinical guideline retrieval, SHAP feature explainability, and doctor-in-the-loop governance.
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 56, flexWrap: 'wrap' }}>
@@ -167,7 +167,7 @@ export default function LandingPage({ onNavigate, onEnterApp }) {
               { step: '01', title: 'Upload Report', icon: '📄', desc: 'PDF / Image OCR' },
               { step: '02', title: 'OCR Extract', icon: '🔍', desc: 'Tesseract & Vision' },
               { step: '03', title: 'Validate Data', icon: '✅', desc: 'LOINC Range Check' },
-              { step: '04', title: 'ML Predict', icon: '🧬', desc: 'XGBoost Risk Score' },
+              { step: '04', title: 'ML Predict', icon: '🧬', desc: 'Logistic Regression Score' },
               { step: '05', title: 'Explain (XAI)', icon: '📊', desc: 'SHAP Feature Drivers' },
               { step: '06', title: 'Retrieve RAG', icon: '📚', desc: 'ADA / ESC Evidence' },
               { step: '07', title: 'Doctor Review', icon: '🩺', desc: 'Human Oversight' }
