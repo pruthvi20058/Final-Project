@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_BASE } from '../services/api';
+import { API_BASE, formatHttpError } from '../services/api';
 
 const API = API_BASE;
 
@@ -36,7 +36,7 @@ function FloatingParticles() {
   );
 }
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onNavigate }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -62,21 +62,24 @@ export default function LoginPage({ onLogin }) {
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data && data.token && data.doctor) {
         localStorage.setItem('mediagent_token', data.token);
         localStorage.setItem('mediagent_doctor', JSON.stringify(data.doctor));
         onLogin(data.doctor);
         return;
-      } else {
-        const data = await res.json().catch(() => ({}));
-        const msg = typeof data.error === 'string'
-          ? data.error
-          : (data.error?.message || data.message || 'Invalid email or password');
-        setError(msg);
+      }
+
+      if (res.ok) {
+        setError('Invalid response from backend server. Verify VITE_API_URL points to your Render API.');
         setLoading(false);
         return;
       }
+
+      setError(formatHttpError(res, data, 'Invalid email or password'));
+      setLoading(false);
+      return;
     } catch (err) {
       setError('Unable to connect to the MediAgent server. Please try again later.');
       setLoading(false);
@@ -253,6 +256,22 @@ export default function LoginPage({ onLogin }) {
             </form>
 
 
+
+            {onNavigate && (
+              <div style={{ marginTop: 18, textAlign: 'center', fontSize: '0.84rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  Don&apos;t have an account?{' '}
+                  <span style={{ color: '#00d4aa', cursor: 'pointer', fontWeight: 600 }} onClick={() => onNavigate('register')}>
+                    Create Account →
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-tertiary)', cursor: 'pointer' }} onClick={() => onNavigate('home')}>
+                    ← Back to Home
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="login-footer">
               <p>🔐 Secure HIPAA-compliant access</p>

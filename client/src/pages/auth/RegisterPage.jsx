@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { API_BASE } from '../../services/api';
+import { API_BASE, formatHttpError } from '../../services/api';
 
 const API = API_BASE;
 
@@ -43,9 +43,9 @@ export default function RegisterPage({ onNavigate, onLogin }) {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => null);
 
-      if (res.ok) {
+      if (res.ok && data && data.doctor) {
         if (data.token) {
           localStorage.setItem('mediagent_token', data.token);
           localStorage.setItem('mediagent_doctor', JSON.stringify(data.doctor));
@@ -58,8 +58,8 @@ export default function RegisterPage({ onNavigate, onLogin }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
         });
-        const loginData = await loginRes.json().catch(() => ({}));
-        if (loginRes.ok && loginData.token) {
+        const loginData = await loginRes.json().catch(() => null);
+        if (loginRes.ok && loginData && loginData.token) {
           localStorage.setItem('mediagent_token', loginData.token);
           localStorage.setItem('mediagent_doctor', JSON.stringify(loginData.doctor));
           onLogin(loginData.doctor);
@@ -69,10 +69,12 @@ export default function RegisterPage({ onNavigate, onLogin }) {
         return;
       }
 
-      const msg = typeof data.error === 'string'
-        ? data.error
-        : (data.error?.message || data.message || 'Registration failed. Please try again.');
-      setError(msg);
+      if (res.ok) {
+        setError('Invalid response from backend server. Verify VITE_API_URL points to your Render API.');
+        return;
+      }
+
+      setError(formatHttpError(res, data, 'Registration failed. Please try again.'));
     } catch (err) {
       setError('Unable to connect to the MediAgent server. Please try again later.');
     } finally {

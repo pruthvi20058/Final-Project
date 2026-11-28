@@ -156,3 +156,22 @@ describe('API service — reportService.upload validates file', () => {
     ).rejects.toThrow(/valid laboratory report file/);
   });
 });
+
+describe('API service — formatHttpError', () => {
+  it('identifies unconfigured VITE_API_URL on HTTP 405 from static host', async () => {
+    const api = await import('./api.js');
+    const msg = api.formatHttpError({ status: 405 }, null, 'Invalid email or password');
+    expect(msg).toContain('VITE_API_URL');
+    expect(msg).toContain('405');
+  });
+
+  it('uses backend error message when returned in JSON', async () => {
+    const api = await import('./api.js');
+    const msg = api.formatHttpError(
+      { status: 401 },
+      { error: { message: 'Invalid email or password' } },
+      'Fallback'
+    );
+    expect(msg).toBe('Invalid email or password');
+  });
+});

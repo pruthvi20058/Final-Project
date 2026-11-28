@@ -13,6 +13,25 @@ const getApiBase = () => {
 
 export const API_BASE = getApiBase();
 
+/**
+ * Format an HTTP error response from auth/API endpoints into a clear message.
+ * Distinguishes static-host routing errors (e.g. HTTP 405 when VITE_API_URL is unset)
+ * from real backend credential or validation errors.
+ */
+export function formatHttpError(res, data, defaultMessage = 'Request failed') {
+  const apiMsg = typeof data?.error === 'string'
+    ? data.error
+    : (data?.error?.message || data?.message);
+  if (apiMsg) return apiMsg;
+  if (res.status === 405 || (res.status === 404 && API_BASE === '/api')) {
+    return `Backend API is not connected (HTTP ${res.status} at ${API_BASE}). Set VITE_API_URL to your Render backend URL in Vercel Environment Variables and redeploy.`;
+  }
+  if (res.status >= 500) {
+    return `Backend server error (HTTP ${res.status}). Please verify your Render backend service is running.`;
+  }
+  return defaultMessage;
+}
+
 // Clinical fallback data has been removed. The backend is the sole source of truth for
 // predictions, reports, XAI, evidence, and risk assessments. API failures now propagate
 // as errors instead of being silently substituted with fabricated clinical data.
