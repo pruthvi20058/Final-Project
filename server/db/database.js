@@ -1823,7 +1823,7 @@ function recordFailedLogin(email, ipAddress) {
   const database = getDb();
   const id = `FL-${require('uuid').v4().slice(0, 8)}`;
   database.prepare(
-    'INSERT INTO failed_logins (id, email, ip_address, attempted_at) VALUES (?, ?, ?, datetime("now"))'
+    'INSERT INTO failed_logins (id, email, ip_address, attempted_at) VALUES (?, ?, ?, datetime(\'now\'))'
   ).run(id, email, ipAddress || null);
 }
 
