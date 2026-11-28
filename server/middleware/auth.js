@@ -4,6 +4,8 @@
  */
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { revokeToken, isRevoked, cleanupExpired } = require('../utils/tokenBlacklist');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -12,22 +14,47 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required. Set it in .env or your hosting platform.');
 }
 
+// Periodically clean up expired revoked tokens (every hour)
+setInterval(cleanupExpired, 60 * 60 * 1000);
+
 /**
  * Generate a signed JWT access token for an authenticated user.
+ * Includes a JTI (JWT ID) for revocation support.
  * @param {Object} user - { id, email, name, specialty, licenseNumber, role }
  * @returns {string} signed JWT
  */
 function generateToken(user) {
+  const jti = crypto.randomBytes(16).toString('hex');
+  const now = Math.floor(Date.now() / 1000);
+  const expiresInSeconds = parseJwtExpiry(JWT_EXPIRES_IN);
+  const exp = now + expiresInSeconds;
+
   const payload = {
+    jti,
     sub: user.id,
     email: user.email,
     name: user.name,
     specialty: user.specialty,
     licenseNumber: user.licenseNumber || null,
     role: user.role || 'doctor',
-    iat: Math.floor(Date.now() / 1000),
+    iat: now,
+    exp,
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET);
+}
+
+/**
+ * Parse a JWT expiry string (e.g. '24h', '7d') into seconds.
+ * @param {string} expiresIn - jwt expiresIn string
+ * @returns {number} seconds
+ */
+function parseJwtExpiry(expiresIn) {
+  const match = String(expiresIn).match(/^(\d+)([smhd])$/);
+  if (!match) return 24 * 60 * 60; // default 24h
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 };
+  return value * (multipliers[unit] || 86400);
 }
 
 /**
@@ -49,6 +76,15 @@ function authenticateToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Token revocation check: reject revoked JTI
+    if (decoded.jti && isRevoked(decoded.jti)) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'TOKEN_REVOKED', message: 'Token has been revoked. Please log in again.' },
+      });
+    }
+
     req.user = {
       id: decoded.sub,
       email: decoded.email,
@@ -56,6 +92,7 @@ function authenticateToken(req, res, next) {
       specialty: decoded.specialty,
       licenseNumber: decoded.licenseNumber,
       role: decoded.role,
+      jti: decoded.jti,
     };
     next();
   } catch (err) {
@@ -162,5 +199,6 @@ module.exports = {
   authenticateToken,
   optionalAuth,
   requireOwnership,
+  revokeToken,
   JWT_SECRET,
 };

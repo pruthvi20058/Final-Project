@@ -159,6 +159,17 @@ function initTables() {
       FOREIGN KEY (doctor_id) REFERENCES doctors(id)
     );
 
+    CREATE TABLE IF NOT EXISTS failed_logins (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      attempted_at TEXT DEFAULT (datetime('now')),
+      ip_address TEXT,
+      FOREIGN KEY (email) REFERENCES doctors(email)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_failed_logins_email ON failed_logins(email);
+    CREATE INDEX IF NOT EXISTS idx_failed_logins_attempted_at ON failed_logins(attempted_at);
+
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
       patient_id TEXT,
@@ -443,9 +454,11 @@ function seedData() {
     for (const p of patients) stmt.run(p);
   }
 
-  // Seed default doctor account with hashed password
+  // Seed default doctor account ONLY in demo/test environments.
+  // Production must not create publicly known default accounts.
+  const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'test';
   const doctorCount = db.prepare('SELECT COUNT(*) as c FROM doctors').get().c;
-  if (doctorCount === 0) {
+  if (doctorCount === 0 && isDemoMode) {
     const defaultPasswordHash = hashPasswordSync('MediAgent@2026!Secure');
     db.prepare(`
       INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
@@ -459,6 +472,8 @@ function seedData() {
       license_number: 'MG-2026-001',
       role: 'doctor',
     });
+  } else if (doctorCount === 0 && !isDemoMode) {
+    console.warn('[DB] Production mode: no default doctor account created. First registration becomes the initial user.');
   } else {
     // Migrate any existing plaintext passwords to bcrypt hashes
     migratePlaintextPasswords();
@@ -1798,6 +1813,44 @@ function getAssessmentRisksByUser(userId) {
   }));
 }
 
+/**
+ * Record a failed login attempt for an email address.
+ * Used for account lockout / brute-force protection.
+ * @param {string} email - Attempted email
+ * @param {string} [ipAddress] - Client IP address
+ */
+function recordFailedLogin(email, ipAddress) {
+  const database = getDb();
+  const id = `FL-${require('uuid').v4().slice(0, 8)}`;
+  database.prepare(
+    'INSERT INTO failed_logins (id, email, ip_address, attempted_at) VALUES (?, ?, ?, datetime("now"))'
+  ).run(id, email, ipAddress || null);
+}
+
+/**
+ * Count failed login attempts for an email within a time window.
+ * @param {string} email
+ * @param {number} windowMinutes - Lookback window in minutes
+ * @returns {number}
+ */
+function countFailedLogins(email, windowMinutes = 15) {
+  const database = getDb();
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+  const row = database.prepare(
+    'SELECT COUNT(*) as c FROM failed_logins WHERE email = ? AND attempted_at >= ?'
+  ).get(email, since);
+  return row ? row.c : 0;
+}
+
+/**
+ * Clear failed login attempts for an email (after successful login).
+ * @param {string} email
+ */
+function clearFailedLogins(email) {
+  const database = getDb();
+  database.prepare('DELETE FROM failed_logins WHERE email = ?').run(email);
+}
+
 module.exports = {
   getDb,
   hashPassword,
@@ -1842,5 +1895,9 @@ module.exports = {
   // Task 8: Clinical risk assessment persistence
   saveAssessmentRisk,
   getAssessmentRisk,
-  getAssessmentRisksByUser
+  getAssessmentRisksByUser,
+  // Authentication security
+  recordFailedLogin,
+  countFailedLogins,
+  clearFailedLogins
 };

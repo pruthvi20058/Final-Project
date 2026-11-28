@@ -1,13 +1,34 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/database');
 const {
   getDoctorByEmail,
   createDoctor,
   hashPassword,
   verifyPassword,
+  recordFailedLogin,
+  countFailedLogins,
+  clearFailedLogins,
 } = require('../db/database');
-const { generateToken, authenticateToken } = require('../middleware/auth');
+const { generateToken, authenticateToken, revokeToken } = require('../middleware/auth');
+
+/**
+ * Validate password complexity.
+ * Minimum 8 characters, at least one letter and one digit.
+ */
+function validatePasswordComplexity(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    return 'Password must be at least 8 characters long';
+  }
+  if (!/[A-Za-z]/.test(password)) {
+    return 'Password must contain at least one letter';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one digit';
+  }
+  return null;
+}
 
 // POST /api/auth/register — Create a new doctor account
 router.post('/register', async (req, res) => {
@@ -21,10 +42,11 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    if (password.length < 8) {
+    const pwError = validatePasswordComplexity(password);
+    if (pwError) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters' },
+        error: { code: 'VALIDATION_ERROR', message: pwError },
       });
     }
 
@@ -39,6 +61,10 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Prevent self-assignment of privileged roles
+    const requestedRole = role && role.trim() ? role.trim() : 'doctor';
+    const assignedRole = ['administrator'].includes(requestedRole) ? 'doctor' : requestedRole;
+
     const doctor = await createDoctor({
       id: `DOC-${Date.now().toString(36).slice(-6)}`,
       name: name.trim(),
@@ -46,7 +72,7 @@ router.post('/register', async (req, res) => {
       password,
       specialty: specialty || 'General Medicine',
       licenseNumber: licenseNumber || 'PENDING',
-      role: role || 'doctor',
+      role: assignedRole,
     });
 
     return res.status(201).json({
@@ -84,9 +110,25 @@ router.post('/login', async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const db = getDb();
+
+    // Account lockout: reject if too many recent failed attempts
+    const failedAttempts = countFailedLogins(normalizedEmail, 15);
+    const MAX_FAILED_ATTEMPTS = 5;
+    if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+      return res.status(429).json({
+        success: false,
+        error: {
+          code: 'ACCOUNT_LOCKED',
+          message: 'Too many failed login attempts. Please try again later.',
+        },
+      });
+    }
+
     const doctor = getDoctorByEmail(normalizedEmail);
 
     if (!doctor) {
+      // Record failed attempt even for unknown email (prevents user enumeration)
+      recordFailedLogin(normalizedEmail, req.ip);
       return res.status(401).json({
         success: false,
         error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' },
@@ -112,11 +154,15 @@ router.post('/login', async (req, res) => {
     }
 
     if (!isValid) {
+      recordFailedLogin(normalizedEmail, req.ip);
       return res.status(401).json({
         success: false,
         error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' },
       });
     }
+
+    // Clear failed attempts on successful login
+    clearFailedLogins(normalizedEmail);
 
     const token = generateToken({
       id: doctor.id,
@@ -176,11 +222,42 @@ router.get('/me', authenticateToken, (req, res) => {
   });
 });
 
-// POST /api/auth/logout — Invalidate session (client-side token removal)
+// POST /api/auth/logout — Revoke JWT token server-side
 router.post('/logout', authenticateToken, (req, res) => {
-  // JWTs are stateless; logout is handled client-side by removing the token.
-  // This endpoint confirms logout and can be extended with a token blacklist later.
+  try {
+    const jti = req.user && req.user.jti ? req.user.jti : null;
+    if (jti) {
+      // Decode token to get expiry for blacklist entry
+      const decoded = jwt_decode_unsafe(req.headers.authorization);
+      if (decoded && decoded.exp) {
+        revokeToken(jti, new Date(decoded.exp * 1000).toISOString(), 'user_logout');
+      } else {
+        revokeToken(jti, new Date(Date.now() + 86400000).toISOString(), 'user_logout');
+      }
+    }
+  } catch (revokeErr) {
+    // Non-fatal: logout still succeeds client-side
+    console.warn('[Auth] Token revocation warning:', revokeErr.message);
+  }
   res.json({ success: true, message: 'Logged out successfully' });
 });
+
+/**
+ * Decode JWT payload without verification (for logout revocation only).
+ * The token signature was already verified by authenticateToken middleware.
+ * @param {string} authHeader - Authorization header value
+ * @returns {Object|null}
+ */
+function jwt_decode_unsafe(authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    return JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
 
 module.exports = router;
