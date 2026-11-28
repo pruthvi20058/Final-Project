@@ -39,8 +39,10 @@ app.use(helmet({
 }));
 
 // CORS: restrict to specific origins in production; allow all only in dev
+// In development, reflect the request origin to support preview proxies
+// and live preview environments where the frontend URL differs from localhost
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
+  origin: process.env.NODE_ENV === 'development' ? true : (process.env.CORS_ORIGIN || false),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
