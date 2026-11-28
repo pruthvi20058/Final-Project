@@ -164,8 +164,12 @@ export const reportService = {
     if (uploadPayload.history) formData.append('history', uploadPayload.history);
     if (uploadPayload.disease) formData.append('disease', uploadPayload.disease);
 
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE}/reports/upload`, {
       method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: formData
     });
 
@@ -542,8 +546,12 @@ export const mlService = {
     return request('/ml/readiness');
   },
   async uploadDataset(formData) {
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE}/ml/datasets/upload`, {
       method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: formData
     });
     const data = await res.json().catch(() => ({}));
