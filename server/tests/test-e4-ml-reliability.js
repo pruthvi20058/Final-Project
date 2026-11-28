@@ -28,7 +28,7 @@ const { spawn } = require('child_process');
 
 const ML_DIR = path.join(__dirname, '..', 'ml');
 const COMMON_DIR = path.join(ML_DIR, 'common');
-const PYTHON = process.env.PYTHON_PATH || 'python3';
+const PYTHON = process.env.PYTHON_PATH || process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3');
 
 let passed = 0;
 let failed = 0;
@@ -389,7 +389,7 @@ async function main() {
   if (fs.existsSync(nlpTestPath)) {
     try {
       const { execSync } = require('child_process');
-      const out = execSync(`python3 ${nlpTestPath}`, { cwd: __dirname, encoding: 'utf8', timeout: 60000 });
+      const out = execSync(`"${PYTHON}" "${nlpTestPath}"`, { cwd: __dirname, encoding: 'utf8', timeout: 60000 });
       const nlpMatch = out.match(/(\d+) \/ (\d+) PASSED, (\d+) SKIPPED/);
       if (nlpMatch) {
         record(`NLP multilingual: ${nlpMatch[1]}/${nlpMatch[2]} passed, ${nlpMatch[3]} skipped`,
