@@ -163,8 +163,7 @@ function initTables() {
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
       attempted_at TEXT DEFAULT (datetime('now')),
-      ip_address TEXT,
-      FOREIGN KEY (email) REFERENCES doctors(email)
+      ip_address TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_failed_logins_email ON failed_logins(email);
