@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
@@ -57,7 +58,7 @@ function migratePlaintextPasswords() {
     for (const doctor of doctors) {
       try {
         const hash = hashPasswordSync(doctor.password);
-        db.prepare('UPDATE doctors SET password_hash = ?, password = NULL WHERE id = ?').run(hash, doctor.id);
+        db.prepare("UPDATE doctors SET password_hash = ?, password = '' WHERE id = ?").run(hash, doctor.id);
       } catch (err) {
         console.warn(`[DB] Failed to migrate password for doctor ${doctor.id}:`, err.message);
       }
@@ -69,8 +70,19 @@ function migratePlaintextPasswords() {
 
 function getDb() {
   if (!db) {
-    const dbPath = path.join(__dirname, '..', 'mediagent.db');
-    db = new Database(dbPath);
+    const defaultDbPath = path.join(__dirname, '..', 'mediagent.db');
+    let targetPath = process.env.DATABASE_PATH || defaultDbPath;
+    try {
+      const dir = path.dirname(targetPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      db = new Database(targetPath);
+    } catch (err) {
+      console.warn(`[Database] Failed to open DATABASE_PATH at ${targetPath} (${err.message}). Falling back to ${defaultDbPath}`);
+      targetPath = defaultDbPath;
+      db = new Database(targetPath);
+    }
     db.pragma('journal_mode = WAL');
     initTables();
     seedData();
@@ -1487,8 +1499,15 @@ async function createDoctor(data) {
   const passwordHash = await hashPassword(data.password);
 
   database.prepare(`
-    INSERT INTO doctors (id, name, email, password_hash, specialty, license_number, role, created_at)
-    VALUES (@id, @name, @email, @password_hash, @specialty, @license_number, @role, datetime('now'))
+    INSERT INTO doctors (id, name, email, password, password_hash, specialty, license_number, role, created_at)
+    VALUES (@id, @name, @email, '', @password_hash, @specialty, @license_number, @role, datetime('now'))
+    ON CONFLICT(email) DO UPDATE SET
+      name = excluded.name,
+      password = excluded.password,
+      password_hash = excluded.password_hash,
+      specialty = excluded.specialty,
+      license_number = excluded.license_number,
+      role = excluded.role
   `).run({
     id: data.id,
     name: data.name,

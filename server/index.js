@@ -1,3 +1,7 @@
+const { validateEnv } = require('./utils/envValidator');
+// Validate and provision required environment variables before starting and importing services
+validateEnv();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,10 +15,6 @@ const { vectorSearch } = require('./knowledge/medicalKB');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 const { correlationIdMiddleware } = require('./middleware/correlation');
 const logger = require('./utils/logger');
-const { validateEnv } = require('./utils/envValidator');
-
-// Validate required environment variables before starting
-validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -42,10 +42,23 @@ app.use(helmet({
 // In development, reflect the request origin to support preview proxies
 // and live preview environments where the frontend URL differs from localhost
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'development' ? true : (process.env.CORS_ORIGIN || false),
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile, server-to-server, curl)
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV === 'development') return callback(null, true);
+    const configured = (process.env.CORS_ORIGIN || '*').split(',').map(s => s.trim()).filter(Boolean);
+    if (configured.includes('*') || configured.includes(origin)) {
+      return callback(null, true);
+    }
+    // Automatically allow any Vercel deployment domain (*.vercel.app) or localhost
+    if (/\.vercel\.app$/.test(origin) || /localhost|127\.0\.0\.1/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS policy: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-correlation-id'],
 };
 app.use(cors(corsOptions));
 
