@@ -25,16 +25,6 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install Python dependencies
-        run: |
-          pip install -r server/requirements.txt
-
       - name: Install backend dependencies
         run: |
           cd server
@@ -85,7 +75,6 @@ jobs:
         run: |
           cd server
           node tests/test-e4-ml-reliability.js
-
       - name: Run ML model validation tests
         run: |
           cd server
