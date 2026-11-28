@@ -204,7 +204,7 @@ SYMPTOM_LEXICON = {
 # Negation terms across languages
 NEGATION_TERMS = {
     'en': [r'\bno\b', r'\bnot\b', r'\bdon\'t have\b', r'\bdoes not have\b', r'\bdenies\b', r'\bwithout\b', r'\babsent\b'],
-    'kn': [r'ಇಲ್ಲ\b', r'ಇಲ್ಲವೇ ಇಲ್ಲ', r'ಕಾಣಿಸಿಕೊಂಡಿಲ್ಲ', r'ಇಲ್ಲದ', r'ಆಗಿಲ್ಲ'],
+    'kn': [r'ಇಲ್ಲ\b', r'ಇಲ್ಲವೇ ಇಲ್ಲ', r'ಕಾಣಿಸಿಕೊಂಡಿಲ್ಲ', r'ಇಲ್ಲದ', r'ಆಗಿಲ್ಲ', r'ಿಲ್ಲ\b'],
     'hi': [r'नहीं है', r'नहीं', r'ना है', r'गायब है'],
     'ta': [r'இல்லை\b', r'கிடையாது'],
     'te': [r'లేదు\b', r'రావడం లేదు'],

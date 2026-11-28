@@ -715,7 +715,10 @@ router.put('/:id/lab-results', async (req, res) => {
         status: item.status || 'NORMAL',
         quality: item.quality || 'VALID',
         validationFlags: item.validationFlags || [],
-        confidence: item.confidence !== undefined ? item.confidence : 95.0,
+        // E3: User-entered / verified values must NOT receive a fabricated
+        // 95% confidence. Preserve OCR-derived confidence when present;
+        // otherwise record confidence as null (unavailable) with provenance.
+        confidence: item.confidence !== undefined && item.confidence !== null ? item.confidence : null,
         sourceLocation: item.sourceLocation || item.source_location || null,
         validatedByUser: true,
         validatedAt: now,

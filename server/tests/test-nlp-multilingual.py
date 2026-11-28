@@ -142,15 +142,9 @@ neg_tests = [
 for text, symptom, should_be_present in neg_tests:
     result = process_multilingual_input(text)
     found = symptom in result['active_symptoms']
-    # Kannada negation using 'ಇಲ್ಲ\b' regex is a known pre-existing limitation
-    if text == "ನನಗೆ ಜ್ವರಿಲ್ಲ":
-        record(f"Negation: '{text}' → {symptom} present={should_be_present}",
-               True, "SKIP — Kannada negation (ಇಲ್ಲ\\b regex) is a pre-known limitation",
-               is_skip=True)
-    else:
-        record(f"Negation: '{text}' → {symptom} present={should_be_present}",
-               found == should_be_present,
-               f"active: {result['active_symptoms']}, negated: {result['negated_symptoms']}")
+    record(f"Negation: '{text}' → {symptom} present={should_be_present}",
+           found == should_be_present,
+           f"active: {result['active_symptoms']}, negated: {result['negated_symptoms']}")
 
 # ---------------------------------------------------------------------------
 # 5. Historical vs current
