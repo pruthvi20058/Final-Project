@@ -1,206 +1,164 @@
 {
-  "model_id": "dengue_random_forest",
-  "model_version": "v1.0.0-dengue-clinical",
-  "task": "binary_classification",
-  "target": {
-    "name": "outcome",
-    "classes": {
-      "0": "Negative / Other Febrile Illness",
-      "1": "Dengue Positive"
-    }
-  },
+  "disease": "dengue",
+  "model_version": "v1.0.0-dengue-clinical-e4",
   "canonical_features": [
     {
       "name": "Gender",
-      "clinical_label": "Biological Sex",
+      "clinical_label": "Gender",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "gender",
-        "sex"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "gender"
+      ]
     },
     {
       "name": "Age",
-      "clinical_label": "Patient Age",
+      "clinical_label": "Age",
+      "data_type": "float",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
+        "age",
         "age"
-      ],
-      "unit": "years",
-      "numeric_type": "float",
-      "valid_range": {
-        "min": 1,
-        "max": 110
-      }
+      ]
     },
     {
       "name": "NS1",
-      "clinical_label": "Dengue NS1 Antigen",
+      "clinical_label": "NS1",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "ns1",
-        "dengue_ns1",
-        "ns1_antigen"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
-    },
-    {
-      "name": "IgG",
-      "clinical_label": "Dengue IgG Antibody",
-      "report_synonyms": [
-        "igg",
-        "dengue_igg"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "ns1"
+      ]
     },
     {
       "name": "IgM",
-      "clinical_label": "Dengue IgM Antibody",
+      "clinical_label": "IgM",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "igm",
-        "dengue_igm"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "igm"
+      ]
     },
     {
       "name": "Fever_Duration",
       "clinical_label": "Fever Duration",
+      "data_type": "float",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "fever_duration",
-        "duration_of_fever",
-        "fever_days"
-      ],
-      "unit": "days",
-      "numeric_type": "float",
-      "valid_range": {
-        "min": 0,
-        "max": 30
-      }
+        "fever duration"
+      ]
     },
     {
       "name": "Body_Temperature",
       "clinical_label": "Body Temperature",
+      "data_type": "float",
+      "unit": "\u00b0C",
+      "required": false,
       "report_synonyms": [
         "body_temperature",
-        "temp",
-        "temperature"
-      ],
-      "unit": "\u00b0C",
-      "numeric_type": "float",
-      "valid_range": {
-        "min": 35.0,
-        "max": 43.0
-      }
+        "body temperature"
+      ]
     },
     {
       "name": "Platelet_Count",
       "clinical_label": "Platelet Count",
+      "data_type": "float",
+      "unit": "cells/mcL",
+      "required": false,
       "report_synonyms": [
         "platelet_count",
-        "platelets",
-        "plt"
-      ],
-      "unit": "cells/mcL",
-      "numeric_type": "float",
-      "valid_range": {
-        "min": 5000,
-        "max": 800000
-      }
+        "platelet count"
+      ]
     },
     {
       "name": "WBC_Count",
-      "clinical_label": "White Blood Cell Count",
+      "clinical_label": "WBC Count",
+      "data_type": "float",
+      "unit": "cells/mcL",
+      "required": false,
       "report_synonyms": [
         "wbc_count",
-        "wbc",
-        "total_leukocyte_count",
-        "tlc"
-      ],
-      "unit": "cells/mcL",
-      "numeric_type": "float",
-      "valid_range": {
-        "min": 500,
-        "max": 50000
-      }
+        "wbc count"
+      ]
     },
     {
       "name": "Joint_Pain",
-      "clinical_label": "Joint Pain Severity",
+      "clinical_label": "Joint Pain",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "joint_pain",
-        "arthralgia_score"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 2
-      }
+        "joint pain"
+      ]
     },
     {
       "name": "Headache",
       "clinical_label": "Headache",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "headache",
-        "cephalalgia"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "headache"
+      ]
     },
     {
       "name": "Retro_Orbital_Pain",
-      "clinical_label": "Retro-Orbital Pain",
+      "clinical_label": "Retro Orbital Pain",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "retro_orbital_pain",
-        "eye_pain"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "retro orbital pain"
+      ]
     },
     {
       "name": "Myalgia",
-      "clinical_label": "Myalgia / Muscle Pain",
+      "clinical_label": "Myalgia",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "myalgia",
-        "body_pain"
-      ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+        "myalgia"
+      ]
     },
     {
       "name": "Rash",
-      "clinical_label": "Cutaneous Rash",
+      "clinical_label": "Rash",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
       "report_synonyms": [
         "rash",
-        "skin_rash"
+        "rash"
+      ]
+    },
+    {
+      "name": "IgG",
+      "clinical_label": "IgG",
+      "data_type": "int",
+      "unit": "score",
+      "required": false,
+      "report_synonyms": [
+        "igg",
+        "igg"
       ],
-      "numeric_type": "integer",
-      "valid_range": {
-        "min": 0,
-        "max": 1
-      }
+      "excluded_due_to_leakage": true
     }
+  ],
+  "leakage_excluded_features": [
+    "IgG"
   ]
 }

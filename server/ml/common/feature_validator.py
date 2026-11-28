@@ -189,6 +189,20 @@ def validate_features(disease_key, feature_data):
             })
             continue
 
+        # Missingness marker (e.g. Pima 0 = not measured): allow the value but
+        # flag it. Never silently replace with zero or impute.
+        missingness_marker = f_info.get("missingness_marker")
+        is_missingness = (
+            missingness_marker is not None
+            and numeric_val == float(missingness_marker)
+        )
+        if is_missingness:
+            result["warnings"].append(
+                f"Feature '{clinical_label}' ({canon_name}) = {numeric_val} is a "
+                f"documented missingness marker ({f_info.get('missingness_note', 'not measured')}). "
+                f"Value preserved as-is; model behavior on missing inputs is not guaranteed."
+            )
+
         # Range validation (where documented)
         range_min = valid_range.get("min") if valid_range else None
         range_max = valid_range.get("max") if valid_range else None
